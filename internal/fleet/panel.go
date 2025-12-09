@@ -5,6 +5,7 @@ import "github.com/rivo/tview"
 type panel interface {
 	tview.Primitive
 	name() string
+	reload(force bool)
 	startMonitoring()
 	stopMonitoring()
 }
@@ -12,6 +13,12 @@ type panel interface {
 type panels struct {
 	currentPanel int
 	panel        []panel
+}
+
+func (g *Gui) reload(force bool) {
+	for _, panel := range g.state.panels.panel {
+		panel.reload(force)
+	}
 }
 
 func (g *Gui) nextPanel() {

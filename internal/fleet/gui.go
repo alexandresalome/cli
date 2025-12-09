@@ -32,13 +32,7 @@ func New(manager *FleetManager) *Gui {
 func (g *Gui) init() {
 	projectList := newProjectList(g.app, g.manager)
 	projectList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		g.SetGlobalKeybinding(event)
-		switch event.Key() {
-		case tcell.KeyCtrlR:
-			projectList.reload(false)
-		}
-
-		return event
+		return g.HandleGlobalKeybinding(event)
 	})
 	projectList.onChange = func(p ProjectInfo) {
 		//environmentList.setProject(p)
@@ -46,23 +40,14 @@ func (g *Gui) init() {
 
 	organizationList := newOrganizationList(g.app, g.manager)
 	organizationList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		g.SetGlobalKeybinding(event)
-		switch event.Key() {
-		case tcell.KeyCtrlR:
-			organizationList.reload()
-		}
-
-		return event
+		return g.HandleGlobalKeybinding(event)
 	})
 	organizationList.onChange = func(o *OrganizationInfo) {
 		projectList.setOrganization(o)
+		g.app.SetFocus(projectList)
 	}
 
 	g.state.panels.panel = append(g.state.panels.panel, organizationList, projectList)
-
-	status := tview.NewTextView().
-		SetTextAlign(tview.AlignCenter).
-		SetText("status")
 
 	environmentList := tview.NewList().
 		ShowSecondaryText(false).
@@ -78,14 +63,7 @@ func (g *Gui) init() {
 			40, 1, true).
 		AddItem(tview.NewBox().SetBorder(true), 0, 1, false)
 
-	grid := tview.NewGrid().
-		SetRows(0, 2)
-
-	grid.AddItem(flex, 0, 0, 1, 1, 0, 0, true)
-	grid.AddItem(status, 1, 0, 1, 1, 0, 0, false)
-
-	g.app.SetRoot(grid, true).EnableMouse(true)
-
+	g.app.SetRoot(flex, true).EnableMouse(true)
 }
 
 func (g *Gui) startMonitoring() {

@@ -28,9 +28,8 @@ func newOrganizationList(app *tview.Application, manager *FleetManager) *organiz
 	organizationList.SetTitle("Organizations").SetTitleAlign(tview.AlignLeft)
 	organizationList.SetBorder(true)
 	organizationList.SetHighlightFullLine(true)
-	organizationList.SetSelectedFocusOnly(true)
 
-	organizationList.reload()
+	organizationList.reload(true)
 
 	return organizationList
 }
@@ -39,9 +38,13 @@ func (v *organizationList) name() string {
 	return "Organizations"
 }
 
-func (v *organizationList) reload() {
-	if v.reloadMutex.TryLock() == false {
-		return
+func (v *organizationList) reload(force bool) {
+	if force {
+		v.reloadMutex.Lock()
+	} else {
+		if v.reloadMutex.TryLock() == false {
+			return
+		}
 	}
 	defer v.reloadMutex.Unlock()
 
@@ -95,7 +98,7 @@ LOOP:
 	for {
 		select {
 		case <-ticker.C:
-			v.reload()
+			v.reload(false)
 		case <-v.stopChan:
 			ticker.Stop()
 			break LOOP
