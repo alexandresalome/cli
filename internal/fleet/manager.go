@@ -29,10 +29,6 @@ type FleetManager struct {
 }
 
 func NewFleetManager(cnf *config.Config, cmd *cobra.Command) *FleetManager {
-	output := cmd.OutOrStdout()
-	if output == nil {
-		output = os.Stdout
-	}
 	logger := logrus.New()
 	if os.Getenv("INFO") == "true" {
 		logger.SetLevel(logrus.InfoLevel)
@@ -43,7 +39,7 @@ func NewFleetManager(cnf *config.Config, cmd *cobra.Command) *FleetManager {
 	} else {
 		logger.SetLevel(logrus.WarnLevel)
 	}
-	logger.SetOutput(output)
+	logger.SetOutput(cmd.ErrOrStderr())
 	logger.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
