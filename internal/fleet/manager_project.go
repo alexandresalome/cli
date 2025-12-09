@@ -139,8 +139,6 @@ func (pm *ProjectManager) Subscribe(organization *OrganizationInfo) chan Project
 			}
 			ch <- project
 		}
-
-		close(ch)
 	}()
 
 	return ch
