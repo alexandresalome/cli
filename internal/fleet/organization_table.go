@@ -3,7 +3,6 @@ package fleet
 import (
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -130,27 +129,6 @@ func (v *organizationTable) handleSelect(row int, organization OrganizationInfo)
 	v.selected = &organization
 	if v.onChange != nil {
 		v.onChange(v.selected)
-	}
-}
-
-func (v *organizationTable) stopMonitoring() {
-	v.stopChan <- 1
-}
-
-func (v *organizationTable) startMonitoring() {
-	stop := make(chan int, 1)
-	v.stopChan = stop
-	ticker := time.NewTicker(60 * time.Second)
-
-LOOP:
-	for {
-		select {
-		case <-ticker.C:
-			v.reload(false)
-		case <-v.stopChan:
-			ticker.Stop()
-			break LOOP
-		}
 	}
 }
 

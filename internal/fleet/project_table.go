@@ -3,7 +3,6 @@ package fleet
 import (
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -159,8 +158,9 @@ func (v *projectTable) redraw() {
 			})
 
 			envName := "<unknown>"
-			if project.DefaultEnvironment != nil {
-				envName = project.DefaultEnvironment.Title + " " + project.DefaultEnvironment.Status
+			defaultEnvironment := getDefaultEnvironment(project)
+			if defaultEnvironment != nil {
+				envName = defaultEnvironment.Title + " " + defaultEnvironment.Status
 			}
 			v.SetCell(i+1, 2, &tview.TableCell{
 				Text:        tview.Escape(envName),
@@ -174,6 +174,18 @@ func (v *projectTable) redraw() {
 	})
 }
 
+func getDefaultEnvironment(project ProjectInfo) *EnvironmentInfo {
+	for _, env := range project.Environments {
+		if env.IsProduction() {
+			return &env
+		}
+	}
+	if len(project.Environments) > 0 {
+		return &project.Environments[0]
+	}
+	return nil
+}
+
 func (v *projectTable) handleSelect(row int, project ProjectInfo) {
 	v.Select(row, 0)
 	v.selected = &project
@@ -182,33 +194,13 @@ func (v *projectTable) handleSelect(row int, project ProjectInfo) {
 	}
 }
 
-func (v *projectTable) stopMonitoring() {
-	v.stopChan <- 1
-}
-
-func (v *projectTable) startMonitoring() {
-	stop := make(chan int, 1)
-	v.stopChan = stop
-	ticker := time.NewTicker(300 * time.Second)
-
-LOOP:
-	for {
-		select {
-		case <-ticker.C:
-			v.reload(false)
-		case <-v.stopChan:
-			ticker.Stop()
-			break LOOP
-		}
-	}
-}
-
 func (v *projectTable) HandleKeybinding(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
 	case 'o':
 		if v.selected != nil {
-			if v.selected.DefaultEnvironment != nil {
-				OpenURL("https://console.upsun.com/" + v.selected.OrganizationName + "/" + v.selected.ProjectID + "/" + v.selected.DefaultEnvironment.Title)
+			defaultEnvironment := getDefaultEnvironment(*v.selected)
+			if defaultEnvironment != nil {
+				OpenURL("https://console.upsun.com/" + v.selected.OrganizationName + "/" + v.selected.ProjectID + "/" + defaultEnvironment.Title)
 			} else {
 				OpenURL("https://console.upsun.com/" + v.selected.OrganizationName + "/" + v.selected.ProjectID)
 			}

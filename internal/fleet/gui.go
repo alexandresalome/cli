@@ -60,21 +60,8 @@ func (g *Gui) init() {
 	g.app.SetRoot(flex, true).EnableMouse(true)
 }
 
-func (g *Gui) startMonitoring() {
-	for _, panel := range g.state.panels.panel {
-		go panel.startMonitoring()
-	}
-}
-
-func (g *Gui) stopMonitoring() {
-	for _, panel := range g.state.panels.panel {
-		go panel.stopMonitoring()
-	}
-}
-
 func (g *Gui) Start() error {
 	g.init()
-	g.startMonitoring()
 	if err := g.app.Run(); err != nil {
 		g.app.Stop()
 
@@ -85,7 +72,6 @@ func (g *Gui) Start() error {
 }
 
 func (g *Gui) Stop() error {
-	g.stopMonitoring()
 	g.app.Stop()
 
 	return nil

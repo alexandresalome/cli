@@ -6,8 +6,6 @@ type panel interface {
 	tview.Primitive
 	name() string
 	reload(force bool)
-	startMonitoring()
-	stopMonitoring()
 }
 
 type panels struct {
