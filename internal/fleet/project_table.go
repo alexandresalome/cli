@@ -1,8 +1,8 @@
 package fleet
 
 import (
+	"context"
 	"sort"
-	"sync"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -10,14 +10,14 @@ import (
 
 type projectTable struct {
 	*tview.Table
-	app          *tview.Application
-	manager      *FleetManager
-	onChange     func(*ProjectInfo)
-	projects     []ProjectInfo
-	selected     *ProjectInfo
-	stopChan     chan int
-	reloadMutex  sync.Mutex
-	organization *OrganizationInfo
+	app           *tview.Application
+	manager       *FleetManager
+	onChange      func(*ProjectInfo)
+	projects      []ProjectInfo
+	selected      *ProjectInfo
+	stopChan      chan int
+	organization  *OrganizationInfo
+	loadingCancel context.CancelFunc
 }
 
 func newProjectTable(app *tview.Application, manager *FleetManager) *projectTable {
@@ -55,6 +55,11 @@ func (v *projectTable) setOrganization(organization *OrganizationInfo) {
 	go v.app.QueueUpdateDraw(func() {
 		v.Clear()
 	})
+
+	if v.loadingCancel != nil {
+		v.loadingCancel()
+		v.loadingCancel = nil
+	}
 	v.reload(true)
 }
 
@@ -63,14 +68,11 @@ func (v *projectTable) name() string {
 }
 
 func (v *projectTable) reload(force bool) {
-	if force {
-		v.reloadMutex.Lock()
-	} else {
-		if v.reloadMutex.TryLock() == false {
-			return
-		}
+	if v.loadingCancel != nil {
+		v.loadingCancel()
+		v.loadingCancel = nil
 	}
-	defer v.reloadMutex.Unlock()
+
 	if v.organization == nil {
 		v.projects = make([]ProjectInfo, 0)
 		v.redraw()
@@ -78,16 +80,21 @@ func (v *projectTable) reload(force bool) {
 		return
 	}
 
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	v.loadingCancel = cancelCtx
 	spinTitle(v.app, v, "Projects", func() {
 		projectChan := v.manager.Project.Subscribe(v.organization)
 		projectMap := make(map[string]ProjectInfo)
 
 		for {
 			select {
+			case <-ctx.Done():
+				return
 			case project, ok := <-projectChan:
 				if !ok {
 					return
 				}
+
 				projectMap[project.ProjectID] = project
 
 				projects := []ProjectInfo{}
@@ -101,6 +108,7 @@ func (v *projectTable) reload(force bool) {
 				v.redraw()
 			}
 		}
+		v.loadingCancel = nil
 	})
 }
 
@@ -108,6 +116,7 @@ var projectHeaders = []string{
 	"Id",
 	"Name",
 	"Environment",
+	"Status",
 }
 
 func (v *projectTable) redraw() {
@@ -157,19 +166,35 @@ func (v *projectTable) redraw() {
 				Expansion: 1,
 			})
 
-			envName := "<unknown>"
 			defaultEnvironment := getDefaultEnvironment(project)
-			if defaultEnvironment != nil {
-				envName = defaultEnvironment.Title + " " + defaultEnvironment.Status
+			if defaultEnvironment == nil {
+				v.SetCell(i+1, 2, &tview.TableCell{
+					Text:        tview.Escape("<unknown>"),
+					Transparent: true,
+					Clicked: func() bool {
+						v.handleSelect(i+1, project)
+						return true
+					},
+				})
+			} else {
+
+				v.SetCell(i+1, 2, &tview.TableCell{
+					Text:        tview.Escape(defaultEnvironment.Title),
+					Transparent: true,
+					Clicked: func() bool {
+						v.handleSelect(i+1, project)
+						return true
+					},
+				})
+				v.SetCell(i+1, 3, &tview.TableCell{
+					Text:        tview.Escape(defaultEnvironment.Status),
+					Transparent: true,
+					Clicked: func() bool {
+						v.handleSelect(i+1, project)
+						return true
+					},
+				})
 			}
-			v.SetCell(i+1, 2, &tview.TableCell{
-				Text:        tview.Escape(envName),
-				Transparent: true,
-				Clicked: func() bool {
-					v.handleSelect(i+1, project)
-					return true
-				},
-			})
 		}
 	})
 }
