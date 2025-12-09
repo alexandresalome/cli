@@ -16,6 +16,7 @@ type ProjectInfo struct {
 	Created            string
 	EnvironmentsLoaded bool
 	Environments       []ProjectEnvironmentInfo
+	DefaultEnvironment ProjectEnvironmentInfo
 }
 
 type ProjectEnvironmentInfo struct {
@@ -132,6 +133,12 @@ func (pm *ProjectManager) Subscribe() chan ProjectInfo {
 		for _, project := range projects {
 			envs, err := pm.GetEnvironments(project.ProjectID)
 			if err == nil {
+				for _, env := range envs {
+					if env.Type == "production" {
+						project.DefaultEnvironment = env
+						break
+					}
+				}
 				project.Environments = envs
 				project.EnvironmentsLoaded = true
 			}
@@ -143,7 +150,3 @@ func (pm *ProjectManager) Subscribe() chan ProjectInfo {
 
 	return ch
 }
-
-//
-// OrganizationManager
-//
