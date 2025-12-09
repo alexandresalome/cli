@@ -69,7 +69,7 @@ func (v *organizationTable) reload(force bool) {
 	defer v.reloadMutex.Unlock()
 
 	spinTitle(v.app, v, "Organizations", func() {
-		organizations, _ := v.manager.Organization.List()
+		organizations, _ := v.manager.Organization.ListAll()
 
 		keys := make([]string, 0, len(organizations))
 		tmpMap := make(map[string]OrganizationInfo)

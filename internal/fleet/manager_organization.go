@@ -39,7 +39,7 @@ func NewOrganizationManager(fleetManager *FleetManager) *OrganizationManager {
 }
 
 func (om *OrganizationManager) GetByID(id string) (*OrganizationInfo, error) {
-	organizations, err := om.List()
+	organizations, err := om.ListAll()
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (om *OrganizationManager) GetByID(id string) (*OrganizationInfo, error) {
 	return nil, fmt.Errorf("organization with ID %s not found", id)
 }
 
-func (om *OrganizationManager) List() ([]OrganizationInfo, error) {
+func (om *OrganizationManager) ListAll() ([]OrganizationInfo, error) {
 	if om.loaded {
 		return om.records, nil
 	}

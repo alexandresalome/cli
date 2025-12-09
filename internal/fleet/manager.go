@@ -25,6 +25,7 @@ type FleetManager struct {
 
 	Organization *OrganizationManager
 	Project      *ProjectManager
+	Environment  *EnvironmentManager
 }
 
 func NewFleetManager(cnf *config.Config, cmd *cobra.Command) *FleetManager {
@@ -56,6 +57,7 @@ func NewFleetManager(cnf *config.Config, cmd *cobra.Command) *FleetManager {
 
 	fleetManager.Organization = NewOrganizationManager(fleetManager)
 	fleetManager.Project = NewProjectManager(fleetManager)
+	fleetManager.Environment = NewEnvironmentManager(fleetManager)
 
 	return fleetManager
 }
