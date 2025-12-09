@@ -1,9 +1,13 @@
 package commands
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/cobra"
 
 	"github.com/platformsh/cli/internal/config"
+	"github.com/platformsh/cli/internal/fleet"
 )
 
 func newFleetCommand(cnf *config.Config) *cobra.Command {
@@ -12,12 +16,20 @@ func newFleetCommand(cnf *config.Config) *cobra.Command {
 		Short: "Fleet command",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			arguments := []string{"multi", "--help"}
+			manager := fleet.NewFleetManager(cnf, cmd)
 
-			c := makeLegacyCLIWrapper(cnf, cmd.OutOrStdout(), cmd.ErrOrStderr(), cmd.InOrStdin())
-			if err := c.Exec(cmd.Context(), arguments...); err != nil {
+			// 1. Verify that the user is authenticated
+			isAuthenticated, email, err := manager.Authentication()
+			if err != nil {
 				exitWithError(err)
 			}
+
+			if !isAuthenticated {
+				fmt.Fprintln(cmd.OutOrStdout(), "You are not logged in to Upsun. Please log in to continue.")
+				os.Exit(1)
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Authenticated as %s\n", email)
 		},
 	}
 
