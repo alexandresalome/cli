@@ -4,7 +4,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-func (g *Gui) HandleGlobalKeybinding(event *tcell.EventKey) *tcell.EventKey {
+func (g *Gui) HandleKeybinding(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
 	case 'q':
 		g.Stop()
