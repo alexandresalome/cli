@@ -1,5 +1,11 @@
 package fleet
 
+import (
+	"fmt"
+
+	"github.com/sirupsen/logrus"
+)
+
 //
 // OrganizationManager
 //
@@ -17,18 +23,42 @@ type OrganizationInfo struct {
 }
 
 type OrganizationManager struct {
+	logger       *logrus.Entry
 	fleetManager *FleetManager
+	loaded       bool
 	records      []OrganizationInfo
 }
 
 func NewOrganizationManager(fleetManager *FleetManager) *OrganizationManager {
 	return &OrganizationManager{
+		logger:       fleetManager.rootLogger.WithField("component", "OrganizationManager"),
 		fleetManager: fleetManager,
+		loaded:       false,
 		records:      []OrganizationInfo{},
 	}
 }
 
+func (om *OrganizationManager) GetByID(id string) (*OrganizationInfo, error) {
+	organizations, err := om.List()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, org := range organizations {
+		if org.ID == id {
+			return &org, nil
+		}
+	}
+
+	return nil, fmt.Errorf("organization with ID %s not found", id)
+}
+
 func (om *OrganizationManager) List() ([]OrganizationInfo, error) {
+	if om.loaded {
+		return om.records, nil
+	}
+
+	om.logger.Info("Loading organizations")
 	args := []string{"organization:list", "--format=csv", "--columns=*"}
 	data, err := om.fleetManager.GetExecOutput(args)
 
@@ -53,18 +83,11 @@ func (om *OrganizationManager) List() ([]OrganizationInfo, error) {
 			OwnerEmail:    record["Owner email"],
 			OwnerUsername: record["Owner username"],
 		}
-		om.addRecord(organization)
+		om.records = append(om.records, organization)
 	}
+
+	om.logger.Debugf("Loaded %d organizations", len(om.records))
+	om.loaded = true
 
 	return om.records, nil
-}
-
-func (om *OrganizationManager) addRecord(org OrganizationInfo) {
-	for i, record := range om.records {
-		if record.ID == org.ID {
-			om.records[i] = org
-			return
-		}
-	}
-	om.records = append(om.records, org)
 }

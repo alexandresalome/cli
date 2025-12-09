@@ -30,6 +30,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+require github.com/sirupsen/logrus v1.9.3
+
 require (
 	cel.dev/expr v0.24.0 // indirect
 	dario.cat/mergo v1.0.1 // indirect

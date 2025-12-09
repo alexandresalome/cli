@@ -3,7 +3,9 @@ package fleet
 import (
 	"bytes"
 	"io"
+	"os"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/platformsh/cli/internal/config"
@@ -18,14 +20,38 @@ type FleetManager struct {
 	config  *config.Config
 	command *cobra.Command
 
+	rootLogger *logrus.Logger
+	logger     *logrus.Entry
+
 	Organization *OrganizationManager
 	Project      *ProjectManager
 }
 
 func NewFleetManager(cnf *config.Config, cmd *cobra.Command) *FleetManager {
+	output := cmd.OutOrStdout()
+	if output == nil {
+		output = os.Stdout
+	}
+	logger := logrus.New()
+	if os.Getenv("INFO") == "true" {
+		logger.SetLevel(logrus.InfoLevel)
+	} else if os.Getenv("DEBUG") == "true" {
+		logger.SetLevel(logrus.DebugLevel)
+	} else if os.Getenv("TRACE") == "true" {
+		logger.SetLevel(logrus.TraceLevel)
+	} else {
+		logger.SetLevel(logrus.WarnLevel)
+	}
+	logger.SetOutput(output)
+	logger.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+
 	fleetManager := &FleetManager{
-		config:  cnf,
-		command: cmd,
+		config:     cnf,
+		command:    cmd,
+		rootLogger: logger,
+		logger:     logger.WithField("component", "FleetManager"),
 	}
 
 	fleetManager.Organization = NewOrganizationManager(fleetManager)
@@ -44,7 +70,6 @@ func (m *FleetManager) Authentication() (bool, string, error) {
 		return false, "", err
 	}
 
-	// strip whitespace
 	stripped := bytes.TrimSpace([]byte(output))
 	if len(stripped) == 0 {
 		return false, "", nil
@@ -53,6 +78,8 @@ func (m *FleetManager) Authentication() (bool, string, error) {
 	return true, string(stripped), nil
 }
 
+// Exec executes a command in the Fleet CLI context.
+// It uses the default IO streams from the command.
 func (m *FleetManager) Exec(arguments []string) error {
 	wrapper := m.createCliWrapperWithDefaultIO()
 	if err := wrapper.Exec(m.command.Context(), arguments...); err != nil {
@@ -62,6 +89,8 @@ func (m *FleetManager) Exec(arguments []string) error {
 	return nil
 }
 
+// GetExecOutput executes a command in the Fleet CLI context and returns its
+// output as a string.
 func (m *FleetManager) GetExecOutput(arguments []string) (string, error) {
 	// buffers inmemory
 	var stdout bytes.Buffer
@@ -69,6 +98,7 @@ func (m *FleetManager) GetExecOutput(arguments []string) (string, error) {
 
 	wrapper := m.createCliWrapper(&stdout, &stderr, nil)
 
+	m.logger.Tracef("Executing command: %s", arguments)
 	if err := wrapper.Exec(m.command.Context(), arguments...); err != nil {
 		newError := err
 		if stderr.Len() > 0 {
