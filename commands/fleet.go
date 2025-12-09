@@ -10,38 +10,58 @@ import (
 	"github.com/platformsh/cli/internal/fleet"
 )
 
+func startGui(manager *fleet.FleetManager) {
+	gui := fleet.New(manager)
+	if err := gui.Start(); err != nil {
+		exitWithError(err)
+	}
+}
+
+func startDataOutput(manager *fleet.FleetManager) {
+
+	// Organizations
+	orgs, err := manager.Organization.ListAll()
+	if err != nil {
+		exitWithError(err)
+	}
+	for _, org := range orgs {
+		fmt.Println(org.ToJson())
+	}
+
+	// Projects
+	projects := manager.Project.SubscribeAll()
+	for project := range projects {
+		fmt.Println(project.ToJson())
+	}
+}
+
 func newFleetCommand(cnf *config.Config) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "fleet [flags] [namespace]",
+		Use:   "fleet [flags]",
 		Short: "Fleet command",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			manager := fleet.NewFleetManager(cnf, cmd)
 
-			fmt.Fprint(cmd.OutOrStdout(), "Authentication...")
-
-			// 1. Verify that the user is authenticated
-			isAuthenticated, email, err := manager.Authentication()
+			isAuthenticated, _, err := manager.Authentication()
 			if err != nil {
-				fmt.Fprintln(cmd.OutOrStdout(), " failed (internal error)")
+				fmt.Fprintln(cmd.OutOrStdout(), "Internal error during the authentication:")
 				exitWithError(err)
-			}
-
-			if !isAuthenticated {
-				fmt.Fprintln(cmd.OutOrStdout(), " failed (not authenticated)")
-				fmt.Fprintln(cmd.OutOrStdout(), "\n- You are not logged into Upsun.\n- Please run `upsun login`.")
+			} else if !isAuthenticated {
+				fmt.Fprintln(cmd.OutOrStdout(), "You are not logged into Upsun.\nPlease run `upsun login`.")
 				os.Exit(1)
 			}
 
-			fmt.Fprintln(cmd.OutOrStdout(), "OK")
-			fmt.Fprintf(cmd.OutOrStdout(), "- Current user: %s\n", email)
-
-			gui := fleet.New(manager)
-			if err := gui.Start(); err != nil {
-				exitWithError(err)
+			data, _ := cmd.Flags().GetBool("data")
+			if !data {
+				startGui(manager)
+			} else {
+				startDataOutput(manager)
 			}
 		},
 	}
+
+	cmd.Flags().BoolP("data", "d", false, "Output fleet data")
 
 	return cmd
 }

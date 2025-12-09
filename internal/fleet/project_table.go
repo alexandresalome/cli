@@ -166,7 +166,7 @@ func (v *projectTable) redraw() {
 				Expansion: 1,
 			})
 
-			defaultEnvironment := getDefaultEnvironment(project)
+			defaultEnvironment := project.ProductionEnvironment
 			if defaultEnvironment == nil {
 				v.SetCell(i+1, 2, &tview.TableCell{
 					Text:        tview.Escape("<unknown>"),
@@ -199,18 +199,6 @@ func (v *projectTable) redraw() {
 	})
 }
 
-func getDefaultEnvironment(project ProjectInfo) *EnvironmentInfo {
-	for _, env := range project.Environments {
-		if env.IsProduction() {
-			return &env
-		}
-	}
-	if len(project.Environments) > 0 {
-		return &project.Environments[0]
-	}
-	return nil
-}
-
 func (v *projectTable) handleSelect(row int, project ProjectInfo) {
 	v.Select(row, 0)
 	v.selected = &project
@@ -223,7 +211,7 @@ func (v *projectTable) HandleKeybinding(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
 	case 'o':
 		if v.selected != nil {
-			defaultEnvironment := getDefaultEnvironment(*v.selected)
+			defaultEnvironment := v.selected.ProductionEnvironment
 			if defaultEnvironment != nil {
 				OpenURL("https://console.upsun.com/" + v.selected.OrganizationName + "/" + v.selected.ProjectID + "/" + defaultEnvironment.Title)
 			} else {

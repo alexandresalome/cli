@@ -55,6 +55,8 @@ func NewFleetManager(cnf *config.Config, cmd *cobra.Command) *FleetManager {
 	fleetManager.Project = NewProjectManager(fleetManager)
 	fleetManager.Environment = NewEnvironmentManager(fleetManager)
 
+	logger.Debug("FleetManager initialized")
+
 	return fleetManager
 }
 

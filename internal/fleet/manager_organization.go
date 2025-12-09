@@ -1,25 +1,45 @@
 package fleet
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/sirupsen/logrus"
 )
+
+func jsonError(err error) string {
+	errorObj := map[string]string{
+		"error": err.Error(),
+	}
+	bytes, err := json.Marshal(errorObj)
+	if err != nil {
+		panic(err)
+	}
+	return string(bytes)
+}
 
 //
 // OrganizationManager
 //
 
 type OrganizationInfo struct {
-	ID            string
-	Name          string
-	Label         string
-	Type          string
-	CreatedAt     string
-	UpdatedAt     string
-	OwnerID       string
-	OwnerEmail    string
-	OwnerUsername string
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Label         string `json:"label"`
+	Type          string `json:"type"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at"`
+	OwnerID       string `json:"owner_id"`
+	OwnerEmail    string `json:"owner_email"`
+	OwnerUsername string `json:"owner_username"`
+}
+
+func (o OrganizationInfo) ToJson() string {
+	bytes, err := json.Marshal(o)
+	if err != nil {
+		panic(err)
+	}
+	return string(bytes)
 }
 
 type OrganizationManager struct {

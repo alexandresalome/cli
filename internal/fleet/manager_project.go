@@ -1,29 +1,32 @@
 package fleet
 
-import "github.com/sirupsen/logrus"
+import (
+	"encoding/json"
+
+	"github.com/sirupsen/logrus"
+)
 
 type ProjectInfo struct {
-	ProjectID          string
-	ProjectTitle       string
-	Region             string
-	Organization       *OrganizationInfo
-	OrganizationName   string
-	OrganizationID     string
-	OrganizationLabel  string
-	OrganizationType   string
-	Status             string
-	Created            string
-	EnvironmentsLoaded bool
-	Environments       []EnvironmentInfo
+	ProjectID             string            `json:"id"`
+	ProjectTitle          string            `json:"title"`
+	Region                string            `json:"region"`
+	Organization          *OrganizationInfo `json:"organization"`
+	OrganizationName      string
+	OrganizationID        string
+	OrganizationLabel     string
+	OrganizationType      string
+	Status                string           `json:"status"`
+	Created               string           `json:"created_at"`
+	ProductionLoaded      bool             `json:"production_loaded"`
+	ProductionEnvironment *EnvironmentInfo `json:"production_environment"`
 }
 
-func (p *ProjectInfo) ProductionEnvironment() *EnvironmentInfo {
-	for _, env := range p.Environments {
-		if env.IsProduction() {
-			return &env
-		}
+func (p ProjectInfo) ToJson() string {
+	bytes, err := json.Marshal(p)
+	if err != nil {
+		panic(err)
 	}
-	return nil
+	return string(bytes)
 }
 
 type ProjectManager struct {
@@ -89,18 +92,18 @@ func (pm *ProjectManager) ListAll() ([]ProjectInfo, error) {
 			continue
 		}
 		project := ProjectInfo{
-			ProjectID:          record["ID"],
-			ProjectTitle:       record["Title"],
-			Region:             record["Region"],
-			Organization:       org,
-			OrganizationName:   record["Org name"],
-			OrganizationID:     record["Org ID"],
-			OrganizationLabel:  record["Org label"],
-			OrganizationType:   record["Org type"],
-			Status:             record["Status"],
-			Created:            record["Created"],
-			EnvironmentsLoaded: false,
-			Environments:       []EnvironmentInfo{},
+			ProjectID:             record["ID"],
+			ProjectTitle:          record["Title"],
+			Region:                record["Region"],
+			Organization:          org,
+			OrganizationName:      record["Org name"],
+			OrganizationID:        record["Org ID"],
+			OrganizationLabel:     record["Org label"],
+			OrganizationType:      record["Org type"],
+			Status:                record["Status"],
+			Created:               record["Created"],
+			ProductionLoaded:      false,
+			ProductionEnvironment: nil,
 		}
 		result = append(result, project)
 	}
@@ -110,6 +113,10 @@ func (pm *ProjectManager) ListAll() ([]ProjectInfo, error) {
 	pm.logger.Debugf("Loaded %d projects", len(pm.records))
 
 	return result, nil
+}
+
+func (pm *ProjectManager) SubscribeAll() chan ProjectInfo {
+	return pm.Subscribe(nil)
 }
 
 func (pm *ProjectManager) Subscribe(organization *OrganizationInfo) chan ProjectInfo {
@@ -132,10 +139,10 @@ func (pm *ProjectManager) Subscribe(organization *OrganizationInfo) chan Project
 
 		// Then, load and send environments for each project
 		for _, project := range projects {
-			envs, err := pm.fleetManager.Environment.List(&project)
-			if err == nil {
-				project.Environments = envs
-				project.EnvironmentsLoaded = true
+			env, err := pm.fleetManager.Environment.FindProductionEnvironment(&project)
+			if err == nil && env != nil {
+				project.ProductionEnvironment = env
+				project.ProductionLoaded = true
 			}
 			ch <- project
 		}
