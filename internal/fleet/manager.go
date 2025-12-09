@@ -2,7 +2,6 @@ package fleet
 
 import (
 	"bytes"
-	"encoding/csv"
 	"io"
 
 	"github.com/spf13/cobra"
@@ -132,78 +131,25 @@ func (pm *ProjectManager) List() ([]ProjectInfo, error) {
 		return nil, err
 	}
 
-	reader := csv.NewReader(bytes.NewReader([]byte(data)))
-	headers, err := reader.Read()
-	if err != nil {
-		return nil, err
-	}
-	records, err := reader.ReadAll()
+	parser, err := NewCsvParser(data)
 	if err != nil {
 		return nil, err
 	}
 
-	IDPos := -1
-	TitlePos := -1
-	RegionPos := -1
-	OrganizationNamePos := -1
-	OrganizationIDPos := -1
-	OrganizationLabelPos := -1
-	OrganizationTypePos := -1
-	StatusPos := -1
-	CreatedPos := -1
-
-	for i, header := range headers {
-		switch header {
-		case "ID":
-			IDPos = i
-		case "Title":
-			TitlePos = i
-		case "Region":
-			RegionPos = i
-		case "Org name":
-			OrganizationNamePos = i
-		case "Org ID":
-			OrganizationIDPos = i
-		case "Org label":
-			OrganizationLabelPos = i
-		case "Org type":
-			OrganizationTypePos = i
-		case "Status":
-			StatusPos = i
-		case "Created":
-			CreatedPos = i
-		}
-	}
-	for _, record := range records {
-		project := ProjectInfo{}
-		if IDPos >= 0 && IDPos < len(record) {
-			project.ProjectID = record[IDPos]
-		}
-		if TitlePos >= 0 && TitlePos < len(record) {
-			project.ProjectTitle = record[TitlePos]
-		}
-		if RegionPos >= 0 && RegionPos < len(record) {
-			project.Region = record[RegionPos]
-		}
-		if OrganizationNamePos >= 0 && OrganizationNamePos < len(record) {
-			project.OrganizationName = record[OrganizationNamePos]
-		}
-		if OrganizationIDPos >= 0 && OrganizationIDPos < len(record) {
-			project.OrganizationID = record[OrganizationIDPos]
-		}
-		if OrganizationLabelPos >= 0 && OrganizationLabelPos < len(record) {
-			project.OrganizationLabel = record[OrganizationLabelPos]
-		}
-		if OrganizationTypePos >= 0 && OrganizationTypePos < len(record) {
-			project.OrganizationType = record[OrganizationTypePos]
-		}
-		if StatusPos >= 0 && StatusPos < len(record) {
-			project.Status = record[StatusPos]
-		}
-		if CreatedPos >= 0 && CreatedPos < len(record) {
-			project.Created = record[CreatedPos]
+	for _, record := range parser.GetRecords() {
+		project := ProjectInfo{
+			ProjectID:         record["ID"],
+			ProjectTitle:      record["Title"],
+			Region:            record["Region"],
+			OrganizationName:  record["Org name"],
+			OrganizationID:    record["Org ID"],
+			OrganizationLabel: record["Org label"],
+			OrganizationType:  record["Org type"],
+			Status:            record["Status"],
+			Created:           record["Created"],
 		}
 		result = append(result, project)
 	}
+
 	return result, nil
 }
