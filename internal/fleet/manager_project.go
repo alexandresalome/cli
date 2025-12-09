@@ -112,11 +112,11 @@ func (pm *ProjectManager) ListAll() ([]ProjectInfo, error) {
 	return result, nil
 }
 
-func (pm *ProjectManager) Subscribe() chan ProjectInfo {
+func (pm *ProjectManager) Subscribe(organization *OrganizationInfo) chan ProjectInfo {
 	ch := make(chan ProjectInfo)
 
 	go func() {
-		projects, err := pm.ListAll()
+		projects, err := pm.List(organization)
 		defer func() {
 			close(ch)
 		}()

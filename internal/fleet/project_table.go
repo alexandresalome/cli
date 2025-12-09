@@ -72,7 +72,6 @@ func (v *projectTable) reload(force bool) {
 		}
 	}
 	defer v.reloadMutex.Unlock()
-
 	if v.organization == nil {
 		v.projects = make([]ProjectInfo, 0)
 		v.redraw()
@@ -81,31 +80,35 @@ func (v *projectTable) reload(force bool) {
 	}
 
 	spinTitle(v.app, v, "Projects", func() {
-		projects, _ := v.manager.Project.List(v.organization)
+		projectChan := v.manager.Project.Subscribe(v.organization)
+		projectMap := make(map[string]ProjectInfo)
 
-		keys := make([]string, 0, len(projects))
-		tmpMap := make(map[string]ProjectInfo)
+		for {
+			select {
+			case project, ok := <-projectChan:
+				if !ok {
+					return
+				}
+				projectMap[project.ProjectID] = project
 
-		for _, p := range projects {
-			tmpMap[p.ProjectTitle] = p
-
-			keys = append(keys, p.ProjectTitle)
+				projects := []ProjectInfo{}
+				for _, p := range projectMap {
+					projects = append(projects, p)
+				}
+				sort.Slice(projects, func(i, j int) bool {
+					return projects[i].ProjectTitle < projects[j].ProjectTitle
+				})
+				v.projects = projects
+				v.redraw()
+			}
 		}
-
-		v.projects = make([]ProjectInfo, 0)
-		sort.Strings(keys)
-
-		for _, key := range keys {
-			v.projects = append(v.projects, tmpMap[key])
-		}
-		v.redraw()
 	})
-
 }
 
 var projectHeaders = []string{
 	"Id",
 	"Name",
+	"Environment",
 }
 
 func (v *projectTable) redraw() {
@@ -154,6 +157,19 @@ func (v *projectTable) redraw() {
 				},
 				Expansion: 1,
 			})
+
+			envName := "<unknown>"
+			if project.DefaultEnvironment != nil {
+				envName = project.DefaultEnvironment.Title + " " + project.DefaultEnvironment.Status
+			}
+			v.SetCell(i+1, 2, &tview.TableCell{
+				Text:        tview.Escape(envName),
+				Transparent: true,
+				Clicked: func() bool {
+					v.handleSelect(i+1, project)
+					return true
+				},
+			})
 		}
 	})
 }
@@ -173,7 +189,7 @@ func (v *projectTable) stopMonitoring() {
 func (v *projectTable) startMonitoring() {
 	stop := make(chan int, 1)
 	v.stopChan = stop
-	ticker := time.NewTicker(60 * time.Second)
+	ticker := time.NewTicker(300 * time.Second)
 
 LOOP:
 	for {
@@ -191,7 +207,11 @@ func (v *projectTable) HandleKeybinding(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
 	case 'o':
 		if v.selected != nil {
-			OpenURL("https://console.upsun.com/" + v.selected.OrganizationName + "/" + v.selected.ProjectID)
+			if v.selected.DefaultEnvironment != nil {
+				OpenURL("https://console.upsun.com/" + v.selected.OrganizationName + "/" + v.selected.ProjectID + "/" + v.selected.DefaultEnvironment.Title)
+			} else {
+				OpenURL("https://console.upsun.com/" + v.selected.OrganizationName + "/" + v.selected.ProjectID)
+			}
 			return nil
 		}
 	}
