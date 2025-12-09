@@ -18,18 +18,19 @@ type OrganizationInfo struct {
 
 type OrganizationManager struct {
 	fleetManager *FleetManager
+	records      []OrganizationInfo
 }
 
 func NewOrganizationManager(fleetManager *FleetManager) *OrganizationManager {
 	return &OrganizationManager{
 		fleetManager: fleetManager,
+		records:      []OrganizationInfo{},
 	}
 }
 
-func (pm *OrganizationManager) List() ([]OrganizationInfo, error) {
-	result := []OrganizationInfo{}
+func (om *OrganizationManager) List() ([]OrganizationInfo, error) {
 	args := []string{"organization:list", "--format=csv", "--columns=*"}
-	data, err := pm.fleetManager.GetExecOutput(args)
+	data, err := om.fleetManager.GetExecOutput(args)
 
 	if err != nil {
 		return nil, err
@@ -52,8 +53,18 @@ func (pm *OrganizationManager) List() ([]OrganizationInfo, error) {
 			OwnerEmail:    record["Owner email"],
 			OwnerUsername: record["Owner username"],
 		}
-		result = append(result, organization)
+		om.addRecord(organization)
 	}
 
-	return result, nil
+	return om.records, nil
+}
+
+func (om *OrganizationManager) addRecord(org OrganizationInfo) {
+	for i, record := range om.records {
+		if record.ID == org.ID {
+			om.records[i] = org
+			return
+		}
+	}
+	om.records = append(om.records, org)
 }
