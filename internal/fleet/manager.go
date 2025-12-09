@@ -18,7 +18,8 @@ type FleetManager struct {
 	config  *config.Config
 	command *cobra.Command
 
-	Project *ProjectManager
+	Organization *OrganizationManager
+	Project      *ProjectManager
 }
 
 func NewFleetManager(cnf *config.Config, cmd *cobra.Command) *FleetManager {
@@ -27,6 +28,7 @@ func NewFleetManager(cnf *config.Config, cmd *cobra.Command) *FleetManager {
 		command: cmd,
 	}
 
+	fleetManager.Organization = NewOrganizationManager(fleetManager)
 	fleetManager.Project = NewProjectManager(fleetManager)
 
 	return fleetManager
@@ -97,6 +99,64 @@ func (m *FleetManager) createCliWrapper(stdout io.Writer, stderr io.Writer, stdi
 }
 
 //
+// OrganizationManager
+//
+
+type OrganizationInfo struct {
+	ID            string
+	Name          string
+	Label         string
+	Type          string
+	CreatedAt     string
+	UpdatedAt     string
+	OwnerID       string
+	OwnerEmail    string
+	OwnerUsername string
+}
+
+type OrganizationManager struct {
+	fleetManager *FleetManager
+}
+
+func NewOrganizationManager(fleetManager *FleetManager) *OrganizationManager {
+	return &OrganizationManager{
+		fleetManager: fleetManager,
+	}
+}
+
+func (pm *OrganizationManager) List() ([]OrganizationInfo, error) {
+	result := []OrganizationInfo{}
+	args := []string{"organization:list", "--format=csv", "--columns=*"}
+	data, err := pm.fleetManager.GetExecOutput(args)
+
+	if err != nil {
+		return nil, err
+	}
+
+	parser, err := NewCsvParser(data)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, record := range parser.GetRecords() {
+		organization := OrganizationInfo{
+			ID:            record["ID"],
+			Name:          record["Name"],
+			Label:         record["Label"],
+			Type:          record["Type"],
+			CreatedAt:     record["Created at"],
+			UpdatedAt:     record["Updated at"],
+			OwnerID:       record["Owner ID"],
+			OwnerEmail:    record["Owner email"],
+			OwnerUsername: record["Owner username"],
+		}
+		result = append(result, organization)
+	}
+
+	return result, nil
+}
+
+//
 // ProjectManager
 //
 
@@ -122,9 +182,9 @@ func NewProjectManager(fleetManager *FleetManager) *ProjectManager {
 	}
 }
 
-func (pm *ProjectManager) List() ([]ProjectInfo, error) {
+func (pm *ProjectManager) List(organization *OrganizationInfo) ([]ProjectInfo, error) {
 	result := []ProjectInfo{}
-	args := []string{"project:list", "--format=csv", "--count=0", "--columns=*"}
+	args := []string{"project:list", "--format=csv", "--count=0", "--columns=*", "--org", organization.ID}
 	data, err := pm.fleetManager.GetExecOutput(args)
 
 	if err != nil {

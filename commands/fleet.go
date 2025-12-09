@@ -36,21 +36,9 @@ func newFleetCommand(cnf *config.Config) *cobra.Command {
 			fmt.Fprintln(cmd.OutOrStdout(), "OK")
 			fmt.Fprintf(cmd.OutOrStdout(), "- Current user: %s\n", email)
 
-			// 2. Fetch the list of projects
-			fmt.Fprint(cmd.OutOrStdout(), "Fetching projects... ")
-
-			projects, err := manager.Project.List()
-			if err != nil {
-				fmt.Fprintln(cmd.OutOrStdout(), "failed")
+			gui := fleet.New(manager)
+			if err := gui.Start(); err != nil {
 				exitWithError(err)
-			}
-
-			fmt.Fprintln(cmd.OutOrStdout(), "OK")
-			fmt.Fprintf(cmd.OutOrStdout(), "- Found %d projects\n", len(projects))
-
-			// 3. Display the list of projects
-			for _, project := range projects {
-				fmt.Fprintf(cmd.OutOrStdout(), "  - %s (ID: %s)\n", project.ProjectTitle, project.ProjectID)
 			}
 		},
 	}
