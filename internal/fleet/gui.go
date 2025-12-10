@@ -29,7 +29,7 @@ func New(manager *FleetManager) *Gui {
 }
 
 func (g *Gui) init() {
-	infoBox := newInfoBox(g.app, g.manager)
+	infoBox := newInfoBox(g.app, g.manager, g.manager.logger)
 	infoBox.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		event = g.HandleKeybinding(event)
 		if event == nil {
@@ -38,7 +38,7 @@ func (g *Gui) init() {
 		return infoBox.HandleKeybinding(event)
 	})
 
-	environmentTable := newEnvironmentTable(g.app, g.manager)
+	environmentTable := newEnvironmentTable(g.app, g.manager, g.manager.logger)
 	environmentTable.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		event = g.HandleKeybinding(event)
 		if event == nil {
@@ -50,7 +50,7 @@ func (g *Gui) init() {
 		infoBox.setEnvironment(e)
 	}
 
-	projectTable := newProjectTable(g.app, g.manager)
+	projectTable := newProjectTable(g.app, g.manager, g.manager.logger)
 	projectTable.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		event = g.HandleKeybinding(event)
 		if event == nil {
@@ -62,7 +62,7 @@ func (g *Gui) init() {
 		environmentTable.setProject(p)
 	}
 
-	organizationTable := newOrganizationTable(g.app, g.manager)
+	organizationTable := newOrganizationTable(g.app, g.manager, g.manager.logger)
 	organizationTable.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		event = g.HandleKeybinding(event)
 		if event == nil {

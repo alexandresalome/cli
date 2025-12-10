@@ -6,12 +6,14 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/sirupsen/logrus"
 )
 
 type organizationTable struct {
 	*tview.Table
 	app           *tview.Application
 	manager       *FleetManager
+	logger        *logrus.Entry
 	onChange      func(*OrganizationInfo)
 	organizations []OrganizationInfo
 	selected      *OrganizationInfo
@@ -19,11 +21,12 @@ type organizationTable struct {
 	loadingCancel context.CancelFunc
 }
 
-func newOrganizationTable(app *tview.Application, manager *FleetManager) *organizationTable {
+func newOrganizationTable(app *tview.Application, manager *FleetManager, logger *logrus.Entry) *organizationTable {
 	organizationTable := &organizationTable{
 		Table:   tview.NewTable(),
 		app:     app,
 		manager: manager,
+		logger:  logger.WithField("component", "OorganizationTable"),
 	}
 
 	organizationTable.SetTitle("Organizations").SetTitleAlign(tview.AlignLeft)
@@ -42,10 +45,7 @@ func newOrganizationTable(app *tview.Application, manager *FleetManager) *organi
 		if index < 0 || index >= len(organizationTable.organizations) {
 			return
 		}
-		organizationTable.selected = &organizationTable.organizations[index]
-		if organizationTable.onChange != nil {
-			organizationTable.onChange(organizationTable.selected)
-		}
+		organizationTable.setSelected(&organizationTable.organizations[index])
 	})
 
 	organizationTable.reload()
@@ -54,6 +54,7 @@ func newOrganizationTable(app *tview.Application, manager *FleetManager) *organi
 }
 
 func (v *organizationTable) reload() {
+	v.logger.Debug("reloading")
 	if v.loadingCancel != nil {
 		v.loadingCancel()
 	}
@@ -79,6 +80,7 @@ var organizationHeaders = []string{
 
 func (v *organizationTable) redraw() {
 	go v.app.QueueUpdateDraw(func() {
+		v.logger.Debug("redrawing")
 		v.Clear()
 		for i, header := range organizationHeaders {
 			v.SetCell(0, i, &tview.TableCell{
@@ -95,21 +97,24 @@ func (v *organizationTable) redraw() {
 		}
 
 		for i, organization := range v.organizations {
+			handleClick := func() bool {
+				v.Select(i+1, 0)
+				v.setSelected(&organization)
+				return true
+			}
+
 			v.SetCell(i+1, 0, &tview.TableCell{
 				Text:        tview.Escape(organization.Label),
 				Transparent: true,
-				Clicked: func() bool {
-					v.handleSelect(i+1, organization)
-					return true
-				},
+				Clicked:     handleClick,
 			})
 		}
 	})
 }
 
-func (v *organizationTable) handleSelect(row int, organization OrganizationInfo) {
-	v.Select(row, 0)
-	v.selected = &organization
+func (v *organizationTable) setSelected(organization *OrganizationInfo) {
+	v.logger.WithField("organization", organization).Debug("selecting")
+	v.selected = organization
 	if v.onChange != nil {
 		v.onChange(v.selected)
 	}

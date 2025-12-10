@@ -6,12 +6,14 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/sirupsen/logrus"
 )
 
 type projectTable struct {
 	*tview.Table
 	app           *tview.Application
 	manager       *FleetManager
+	logger        *logrus.Entry
 	onChange      func(*ProjectInfo)
 	projects      []ProjectInfo
 	selected      *ProjectInfo
@@ -20,11 +22,12 @@ type projectTable struct {
 	loadingCancel context.CancelFunc
 }
 
-func newProjectTable(app *tview.Application, manager *FleetManager) *projectTable {
+func newProjectTable(app *tview.Application, manager *FleetManager, logger *logrus.Entry) *projectTable {
 	projectTable := &projectTable{
 		Table:   tview.NewTable(),
 		app:     app,
 		manager: manager,
+		logger:  logger.WithField("component", "ProjectTable"),
 	}
 
 	projectTable.SetTitle("Projects").SetTitleAlign(tview.AlignLeft)
@@ -36,10 +39,7 @@ func newProjectTable(app *tview.Application, manager *FleetManager) *projectTabl
 		if index < 0 || index >= len(projectTable.projects) {
 			return
 		}
-		projectTable.selected = &projectTable.projects[index]
-		if projectTable.onChange != nil {
-			projectTable.onChange(projectTable.selected)
-		}
+		projectTable.setSelected(&projectTable.projects[index])
 	})
 
 	projectTable.reload()
@@ -57,6 +57,7 @@ func (v *projectTable) setOrganization(organization *OrganizationInfo) {
 }
 
 func (v *projectTable) reload() {
+	v.logger.Debug("reloading")
 	if v.loadingCancel != nil {
 		v.loadingCancel()
 	}
@@ -118,6 +119,7 @@ var projectHeaders = []string{
 
 func (v *projectTable) redraw() {
 	go v.app.QueueUpdateDraw(func() {
+		v.logger.Debug("redrawing")
 		v.Clear()
 		if v.organization == nil {
 			v.ScrollToBeginning()
@@ -143,7 +145,8 @@ func (v *projectTable) redraw() {
 
 		for i, project := range v.projects {
 			handleClick := func() bool {
-				v.handleSelect(i+1, project)
+				v.Select(i+1, 0)
+				v.setSelected(&project)
 				return true
 			}
 			v.SetCell(i+1, 0, &tview.TableCell{
@@ -160,7 +163,7 @@ func (v *projectTable) redraw() {
 			})
 
 			defaultEnvironment := project.DefaultEnvironment
-			titleText := ""
+			titleText := defaultEnvironment.Ref
 			statusText := ""
 
 			if defaultEnvironment != nil && defaultEnvironment.Info != nil {
@@ -182,9 +185,13 @@ func (v *projectTable) redraw() {
 	})
 }
 
-func (v *projectTable) handleSelect(row int, project ProjectInfo) {
-	v.Select(row, 0)
-	v.selected = &project
+func (v *projectTable) setSelected(project *ProjectInfo) {
+	if v.selected == project {
+		return
+	}
+	v.logger.WithField("project", project).Debug("selecting")
+
+	v.selected = project
 	if v.onChange != nil {
 		v.onChange(v.selected)
 	}

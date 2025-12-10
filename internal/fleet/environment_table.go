@@ -6,12 +6,14 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/sirupsen/logrus"
 )
 
 type environmentTable struct {
 	*tview.Table
 	app           *tview.Application
 	manager       *FleetManager
+	logger        *logrus.Entry
 	onChange      func(*Environment)
 	environments  []Environment
 	selected      *Environment
@@ -20,11 +22,12 @@ type environmentTable struct {
 	loadingCancel context.CancelFunc
 }
 
-func newEnvironmentTable(app *tview.Application, manager *FleetManager) *environmentTable {
+func newEnvironmentTable(app *tview.Application, manager *FleetManager, logger *logrus.Entry) *environmentTable {
 	environmentTable := &environmentTable{
 		Table:   tview.NewTable(),
 		app:     app,
 		manager: manager,
+		logger:  logger.WithField("component", "EnvironmentTable"),
 	}
 
 	environmentTable.SetTitle("Environments").SetTitleAlign(tview.AlignLeft)
@@ -55,6 +58,7 @@ func (v *environmentTable) setProject(project *ProjectInfo) {
 }
 
 func (v *environmentTable) reload() {
+	v.logger.Debug("reloading")
 	if v.loadingCancel != nil {
 		v.loadingCancel()
 	}
@@ -70,9 +74,7 @@ func (v *environmentTable) reload() {
 	v.loadingCancel = cancelCtx
 	spinTitle(v.app, v, "Environments", func() {
 		environments, _ := v.manager.Environment.List(v.project, ctx)
-
 		sort.Slice(environments, func(i, j int) bool {
-
 			return environments[i].Info.Title < environments[j].Info.Title
 		})
 
@@ -116,6 +118,7 @@ var environmentHeaders = []string{
 
 func (v *environmentTable) redraw() {
 	go v.app.QueueUpdateDraw(func() {
+		v.logger.Debug("redrawing")
 		v.Clear()
 		if v.project == nil {
 			v.ScrollToBeginning()
@@ -176,6 +179,11 @@ func (v *environmentTable) redraw() {
 }
 
 func (v *environmentTable) setSelected(environment *Environment) {
+	if v.selected == environment {
+		return
+	}
+	v.logger.WithField("environment", environment).Debug("selecting")
+
 	v.selected = environment
 	if v.onChange != nil {
 		v.onChange(v.selected)

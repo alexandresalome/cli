@@ -3,20 +3,23 @@ package fleet
 import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/sirupsen/logrus"
 )
 
 type infoBox struct {
 	*tview.Table
 	app         *tview.Application
 	manager     *FleetManager
+	logger      *logrus.Entry
 	environment *Environment
 }
 
-func newInfoBox(app *tview.Application, manager *FleetManager) *infoBox {
+func newInfoBox(app *tview.Application, manager *FleetManager, logger *logrus.Entry) *infoBox {
 	infoBox := &infoBox{
 		Table:   tview.NewTable(),
 		app:     app,
 		manager: manager,
+		logger:  logger.WithField("component", "InfoBox"),
 	}
 
 	infoBox.SetBorder(true)
@@ -40,6 +43,7 @@ func (v *infoBox) setField(row int, label string, value string) {
 }
 func (v *infoBox) redraw() {
 	go v.app.QueueUpdateDraw(func() {
+		v.logger.Debug("redrawing")
 		v.Clear()
 		if v.environment == nil {
 			return
@@ -49,10 +53,10 @@ func (v *infoBox) redraw() {
 		v.setField(0, "Organization", v.environment.Project.OrganizationLabel)
 		v.setField(1, "Project", v.environment.Project.ProjectTitle)
 		v.setField(2, "Environment", v.environment.Ref)
+		i += 3
 		if v.environment.Info != nil {
 			v.setField(i, "Status", v.environment.Info.Status)
-			v.setField(i+1, "Status", v.environment.Info.Status)
-			i += 2
+			i += 1
 		}
 		if v.environment.Details != nil {
 			v.setField(i, "Domain", v.environment.Details.DefaultDomain)
