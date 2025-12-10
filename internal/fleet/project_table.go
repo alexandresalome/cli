@@ -2,7 +2,9 @@ package fleet
 
 import (
 	"context"
+	"fmt"
 	"sort"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -136,6 +138,36 @@ var projectHeaders = []string{
 	"Status",
 }
 
+func humanizeTime(t string) (string, error) {
+	timeLayout := "2006-01-02T15:04:05Z07:00"
+	parsedTime, err := time.Parse(timeLayout, t)
+	if err != nil {
+		return "", err
+	}
+
+	ago := time.Since(parsedTime)
+	h := ago.Hours()
+	if h >= 24*365 {
+		years := int(h) / (24 * 365)
+		return fmt.Sprintf("%dy", years), nil
+	} else if h >= 24*30 {
+		months := int(h) / (24 * 30)
+		return fmt.Sprintf("%dm", months), nil
+	} else if h >= 24 {
+		days := int(h) / 24
+		return fmt.Sprintf("%dd", days), nil
+	} else if h >= 1 {
+		hours := int(h)
+		return fmt.Sprintf("%dh", hours), nil
+	} else if ago.Minutes() >= 1 {
+		minutes := int(ago.Minutes())
+		return fmt.Sprintf("%dm", minutes), nil
+	} else {
+		seconds := int(ago.Seconds())
+		return fmt.Sprintf("%ds", seconds), nil
+	}
+}
+
 func (v *projectTable) redraw() {
 	go v.app.QueueUpdateDraw(func() {
 		v.logger.Debug("redrawing")
@@ -184,10 +216,27 @@ func (v *projectTable) redraw() {
 			defaultEnvironment := project.DefaultEnvironment
 			titleText := defaultEnvironment.Ref
 			statusText := ""
+			deployedAt := defaultEnvironment.Details.LastDeploymentAt
+
+			if deployedAt == "" {
+				statusText = "⏳ Not deployed"
+			} else {
+				if defaultEnvironment.Details.LastDeploymentSuccessful {
+					statusText = "✅ "
+				} else {
+					statusText = "🚩 "
+				}
+
+				humanTime, err := humanizeTime(deployedAt)
+				if err == nil {
+					statusText += humanTime
+				} else {
+					statusText += deployedAt
+				}
+			}
 
 			if defaultEnvironment != nil && defaultEnvironment.Info != nil {
 				titleText = defaultEnvironment.Info.Title
-				statusText = defaultEnvironment.Info.Status
 			}
 
 			v.SetCell(i+1, 2, &tview.TableCell{

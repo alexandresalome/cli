@@ -206,16 +206,20 @@ func (v *environmentTable) redraw() {
 				return true
 			}
 			deployStatus := ""
-			if environment.Info != nil {
-				deployStatus = environment.Info.Status
+			if environment.IsDefault() {
+				deployStatus += "⭐ "
 			}
 			if environment.Details != nil {
-				if environment.Details.LastDeploymentSuccessful {
-					deployStatus = "✅ " + environment.Info.Status
+				if environment.Details.LastDeploymentAt == "" {
+					deployStatus += "⏳ "
+				} else if environment.Details.LastDeploymentSuccessful {
+					deployStatus += "✅ "
 				} else {
-					deployStatus = "🚩 " + environment.Info.Status
+					deployStatus += "🚩 "
 				}
 			}
+			deployStatus += environment.Info.Status
+
 			v.SetCell(i+1, 0, &tview.TableCell{
 				Text:        tview.Escape(deployStatus),
 				Transparent: true,
