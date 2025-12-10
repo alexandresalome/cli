@@ -292,7 +292,7 @@ func (em *EnvironmentManager) Subscribe(project *ProjectInfo, ctx context.Contex
 		}
 
 		for _, env := range envs {
-			env, err := em.fleetManager.Environment.LoadEnvironment(project, env.Ref, ctx)
+			envLoaded, err := em.fleetManager.Environment.LoadEnvironment(project, env.Ref, ctx)
 			if err != nil {
 				logger.Errorf("Failed to load environment %s for project %s: %v", env.Ref, project.ProjectID, err)
 				continue
@@ -302,7 +302,7 @@ func (em *EnvironmentManager) Subscribe(project *ProjectInfo, ctx context.Contex
 			case <-ctx.Done():
 				logger.Debug("Project subscription cancelled")
 				return
-			case ch <- env:
+			case ch <- envLoaded:
 				logger.Tracef("Sent environment update for %s:%s", project.ProjectID, env.Ref)
 			}
 		}
