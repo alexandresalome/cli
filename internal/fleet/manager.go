@@ -66,6 +66,10 @@ func NewFleetManager(cnf *config.Config, cmd *cobra.Command, cacheDir string) *F
 	return fleetManager
 }
 
+func (m *FleetManager) ClearCache() error {
+	return m.cache.Clear()
+}
+
 // Check the authentication status.
 // Returns (isAuthenticated, email, error)
 func (m *FleetManager) Authentication() (bool, string, error) {

@@ -30,6 +30,11 @@ func NewFleetCache(directory string, logger *logrus.Entry) *FleetCache {
 	}
 }
 
+func (c *FleetCache) Clear() error {
+	c.logger.Infof("Clearing cache directory: %s", c.directory)
+	return os.RemoveAll(c.directory)
+}
+
 func (c *FleetCache) Write(key string, data []byte) error {
 	cacheFile := fmt.Sprintf("%s/%s.cache", c.directory, key)
 	cacheDir := basedir(cacheFile)

@@ -54,6 +54,14 @@ func newFleetCommand(cnf *config.Config) *cobra.Command {
 			}
 			manager := fleet.NewFleetManager(cnf, cmd, cacheDir)
 
+			clearCache, _ := cmd.Flags().GetBool("clear-cache")
+			if clearCache {
+				err := manager.ClearCache()
+				if err != nil {
+					exitWithError(err)
+				}
+			}
+
 			isAuthenticated, _, err := manager.Authentication()
 			if err != nil {
 				fmt.Fprintln(cmd.OutOrStdout(), "Internal error during the authentication:")
@@ -72,6 +80,7 @@ func newFleetCommand(cnf *config.Config) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolP("clear-cache", "c", false, "Clear the fleet cache before running")
 	cmd.Flags().BoolP("data", "d", false, "Output fleet data")
 
 	return cmd
