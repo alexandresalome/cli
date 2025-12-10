@@ -128,7 +128,9 @@ func (pm *ProjectManager) SubscribeAll(ctx context.Context) chan ProjectInfo {
 
 func (pm *ProjectManager) Subscribe(organization *OrganizationInfo, ctx context.Context) chan ProjectInfo {
 	ch := make(chan ProjectInfo)
+	logger := pm.logger.WithFields(logrus.Fields{"organization": organization.ID})
 
+	logger.Info("Starting project subscription")
 	go func() {
 		defer func() {
 			close(ch)
@@ -136,39 +138,35 @@ func (pm *ProjectManager) Subscribe(organization *OrganizationInfo, ctx context.
 		projects, err := pm.List(organization, ctx)
 
 		if err != nil {
-			pm.logger.Errorf("Failed to list projects for subscription: %v", err)
+			logger.Errorf("Failed to list projects for subscription: %v", err)
 
 			return
 		}
-		pm.logger.Debugf("Subscribing to %d projects", len(projects))
+		logger.Debugf("Subscribing to %d projects", len(projects))
 
 		// First, send all projects without environments
 		for _, project := range projects {
 			ch <- project
-			pm.logger.Tracef("Sent project update for %s", project.ProjectID)
+			logger.Tracef("Sent project update for %s", project.ProjectID)
 		}
 
-		pm.logger.Debug("All projects sent, loading environments")
-		// Then, load and send environments for each project
-		for i := range projects {
-			project := &projects[i]
-			env, err := pm.fleetManager.Environment.LoadDefaultEnvironment(project, ctx)
+		// Then, update all default environments
+		for _, project := range projects {
+			_, err := pm.fleetManager.Environment.LoadDefaultEnvironment(&project, ctx)
 			if err != nil {
-				pm.logger.Warnf("Failed to load environment for project %s: %v", project.ProjectID, err)
-				continue
-			} else if project.DefaultEnvironment != env {
-				pm.logger.Errorf("Loaded environment does not match cached one for project %s.", project.ProjectID)
+				logger.Warnf("Failed to load environment for project %s: %v", project.ProjectID, err)
 				continue
 			}
-			pm.logger.Tracef("Project: %+v", project.ToJson())
 			select {
 			case <-ctx.Done():
-				pm.logger.Debug("Project subscription cancelled")
+				logger.Debug("Project subscription cancelled")
 				return
-			case ch <- *project:
-				pm.logger.Tracef("Sent project update for %s", project.ProjectID)
+			case ch <- project:
+				logger.Tracef("Sent project update for %s", project.ProjectID)
 			}
 		}
+
+		logger.Info("Finished project subscription")
 	}()
 
 	return ch

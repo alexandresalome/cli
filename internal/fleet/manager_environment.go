@@ -3,6 +3,7 @@ package fleet
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -90,7 +91,7 @@ func (em *EnvironmentManager) GetOrCreate(projectInfo *ProjectInfo, ref string) 
 	}
 
 	// Try to load from cache
-	if env := em.loadFromCache(projectInfo, ref); env != nil {
+	if env := em.hydrateFromCache(projectInfo, ref); env != nil {
 		return env
 	}
 
@@ -120,17 +121,21 @@ func (em *EnvironmentManager) Save(environment *Environment) error {
 	return nil
 }
 
-func (em *EnvironmentManager) loadFromCache(projectInfo *ProjectInfo, ref string) *Environment {
+func (em *EnvironmentManager) hydrateFromCache(projectInfo *ProjectInfo, ref string) *Environment {
 	cacheKey := getCacheKeyForEnvironment(projectInfo, ref)
 	data := em.fleetManager.cache.Read(cacheKey)
 	var environment Environment
-	err := json.Unmarshal(data, &environment)
-	if err != nil {
-		em.logger.Warnf("Failed to unmarshal environment from cache: %v", err)
-		return nil
+	if data != nil {
+		err := json.Unmarshal(data, &environment)
+		if err != nil {
+			em.logger.Errorf("Failed to decode the cache with key %s: %v", cacheKey, err)
+			return nil
+		}
+		environment.Project = projectInfo
+		return &environment
 	}
-	environment.Project = projectInfo
-	return &environment
+
+	return nil
 }
 
 func getCacheKeyForEnvironment(projectInfo *ProjectInfo, ref string) string {
@@ -138,14 +143,21 @@ func getCacheKeyForEnvironment(projectInfo *ProjectInfo, ref string) string {
 }
 
 func (em *EnvironmentManager) LoadDefaultEnvironment(projectInfo *ProjectInfo, ctx context.Context) (*Environment, error) {
-	return em.loadEnvironment(projectInfo, ".", ctx)
+	return em.LoadEnvironment(projectInfo, ".", ctx)
 }
 
-func (em *EnvironmentManager) loadEnvironment(projectInfo *ProjectInfo, ref string, ctx context.Context) (*Environment, error) {
+func (em *EnvironmentManager) LoadEnvironment(projectInfo *ProjectInfo, ref string, ctx context.Context) (*Environment, error) {
 	logger := em.logger.WithFields(logrus.Fields{"project": projectInfo.ProjectID, "ref": ref})
-	logger.Debug("Loading environment")
 
 	environment := em.GetOrCreate(projectInfo, ref)
+
+	OneMinuteAgo := time.Now().Add(-1 * time.Minute)
+	if environment.Info != nil && environment.InfoFetchedAt.After(OneMinuteAgo) &&
+		environment.Details != nil && environment.DetailsFetchedAt.After(OneMinuteAgo) {
+		logger.Trace("Environment info and details are fresh, skipping load")
+		return environment, nil
+	}
+	em.logger.Debug(fmt.Sprintf("Fetching environment information for %s-%s", projectInfo.ProjectID, ref))
 
 	args := []string{"env:info", "--format=csv", "--project", projectInfo.ProjectID, "-e", ref, "--columns=*"}
 	data, err := em.fleetManager.GetExecOutputWithCtx(args, ctx)
@@ -204,7 +216,7 @@ func (em *EnvironmentManager) loadEnvironment(projectInfo *ProjectInfo, ref stri
 		projectInfo.DefaultEnvironment = environment
 	}
 
-	logger.Debug("Finished loading the environment")
+	logger.Trace("Finished loading the environment")
 
 	em.Save(environment)
 
