@@ -42,7 +42,18 @@ func newFleetCommand(cnf *config.Config) *cobra.Command {
 		Short: "Fleet command",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			manager := fleet.NewFleetManager(cnf, cmd)
+			cacheDir, err := cnf.TempDir()
+			if err != nil {
+				exitWithError(err)
+			}
+			cacheDir = cacheDir + "/fleet"
+			err = os.MkdirAll(cacheDir, 0755)
+			if err != nil {
+				err = fmt.Errorf("could not create fleet cache directory: %w", err)
+				exitWithError(err)
+			}
+			cache := fleet.NewFleetCache(cacheDir)
+			manager := fleet.NewFleetManager(cnf, cmd, cache)
 
 			isAuthenticated, _, err := manager.Authentication()
 			if err != nil {

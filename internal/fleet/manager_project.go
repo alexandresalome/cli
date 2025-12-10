@@ -8,18 +8,17 @@ import (
 )
 
 type ProjectInfo struct {
-	ProjectID             string            `json:"id"`
-	ProjectTitle          string            `json:"title"`
-	Region                string            `json:"region"`
-	Organization          *OrganizationInfo `json:"organization"`
-	OrganizationName      string
-	OrganizationID        string
-	OrganizationLabel     string
-	OrganizationType      string
-	Status                string           `json:"status"`
-	Created               string           `json:"created_at"`
-	ProductionLoaded      bool             `json:"production_loaded"`
-	ProductionEnvironment *EnvironmentInfo `json:"production_environment"`
+	ProjectID          string            `json:"id"`
+	ProjectTitle       string            `json:"title"`
+	Region             string            `json:"region"`
+	Organization       *OrganizationInfo `json:"organization"`
+	OrganizationName   string
+	OrganizationID     string
+	OrganizationLabel  string
+	OrganizationType   string
+	Status             string       `json:"status"`
+	Created            string       `json:"created_at"`
+	DefaultEnvironment *Environment `json:"default_environment"`
 }
 
 func (p ProjectInfo) ToJson() string {
@@ -93,19 +92,26 @@ func (pm *ProjectManager) ListAll(ctx context.Context) ([]ProjectInfo, error) {
 			continue
 		}
 		project := ProjectInfo{
-			ProjectID:             record["ID"],
-			ProjectTitle:          record["Title"],
-			Region:                record["Region"],
-			Organization:          org,
-			OrganizationName:      record["Org name"],
-			OrganizationID:        record["Org ID"],
-			OrganizationLabel:     record["Org label"],
-			OrganizationType:      record["Org type"],
-			Status:                record["Status"],
-			Created:               record["Created"],
-			ProductionLoaded:      false,
-			ProductionEnvironment: nil,
+			ProjectID:          record["ID"],
+			ProjectTitle:       record["Title"],
+			Region:             record["Region"],
+			Organization:       org,
+			OrganizationName:   record["Org name"],
+			OrganizationID:     record["Org ID"],
+			OrganizationLabel:  record["Org label"],
+			OrganizationType:   record["Org type"],
+			Status:             record["Status"],
+			Created:            record["Created"],
+			DefaultEnvironment: nil,
 		}
+		defaultEnv, err := pm.fleetManager.Environment.GetOrCreate(&project, ".")
+		if err != nil {
+			pm.logger.Warnf("Failed to get default environment for project %s: %v", project.ProjectID, err)
+
+			return nil, err
+		}
+
+		project.DefaultEnvironment = defaultEnv
 		result = append(result, project)
 	}
 
@@ -130,25 +136,37 @@ func (pm *ProjectManager) Subscribe(organization *OrganizationInfo, ctx context.
 		projects, err := pm.List(organization, ctx)
 
 		if err != nil {
+			pm.logger.Errorf("Failed to list projects for subscription: %v", err)
+
 			return
 		}
+		pm.logger.Debugf("Subscribing to %d projects", len(projects))
 
 		// First, send all projects without environments
 		for _, project := range projects {
 			ch <- project
+			pm.logger.Tracef("Sent project update for %s", project.ProjectID)
 		}
 
+		pm.logger.Debug("All projects sent, loading environments")
 		// Then, load and send environments for each project
-		for _, project := range projects {
-			env, err := pm.fleetManager.Environment.FindProductionEnvironment(&project, ctx)
-			if err == nil && env != nil {
-				project.ProductionEnvironment = env
-				project.ProductionLoaded = true
+		for i := range projects {
+			project := &projects[i]
+			env, err := pm.fleetManager.Environment.LoadDefaultEnvironment(project, ctx)
+			if err != nil {
+				pm.logger.Warnf("Failed to load environment for project %s: %v", project.ProjectID, err)
+				continue
+			} else if project.DefaultEnvironment != env {
+				pm.logger.Errorf("Loaded environment does not match cached one for project %s.", project.ProjectID)
+				continue
 			}
+			pm.logger.Tracef("Project: %+v", project.ToJson())
 			select {
 			case <-ctx.Done():
+				pm.logger.Debug("Project subscription cancelled")
 				return
-			case ch <- project:
+			case ch <- *project:
+				pm.logger.Tracef("Sent project update for %s", project.ProjectID)
 			}
 		}
 	}()

@@ -2,6 +2,7 @@ package fleet
 
 import (
 	"context"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -16,18 +17,32 @@ type deploymentStateConfig struct {
 	LastDeploymentAt         string `yaml:"last_deployment_at"`
 }
 
+type Environment struct {
+	ProjectID        string              `json:"project_id"`
+	Project          *ProjectInfo        `json:"-"`
+	Ref              string              `json:"ref"`
+	InfoFetchedAt    time.Time           `json:"info_fetched_at"`
+	DetailsFetchedAt time.Time           `json:"details_fetched_at"`
+	Info             *EnvironmentInfo    `json:"info"`
+	Details          *EnvironmentDetails `json:"details"`
+}
+
+func (env *Environment) IsDefault() bool {
+	return env.Ref == "." || env.Info != nil && env.Info.isDefault()
+}
+
 // Fetched from upsun env:list
 type EnvironmentInfo struct {
-	Project       *ProjectInfo        `json:"-"`
-	ID            string              `json:"id"`
-	MachineName   string              `json:"machine_name"`
-	Title         string              `json:"title"`
-	Status        string              `json:"status"`
-	Type          string              `json:"type"`
-	Created       string              `json:"created_at"`
-	Updated       string              `json:"updated_at"`
-	DetailsLoaded bool                `json:"details_loaded"`
-	Details       *EnvironmentDetails `json:"details,omitempty"`
+	MachineName string `json:"machine_name"`
+	Title       string `json:"title"`
+	Status      string `json:"status"`
+	Type        string `json:"type"`
+	Created     string `json:"created_at"`
+	Updated     string `json:"updated_at"`
+}
+
+func (env *EnvironmentInfo) isDefault() bool {
+	return env.Type == "production"
 }
 
 // Fetched from upsun env:info
@@ -44,35 +59,57 @@ func (env *EnvironmentInfo) IsProduction() bool {
 }
 
 type EnvironmentManager struct {
-	logger                             *logrus.Entry
-	fleetManager                       *FleetManager
-	records                            map[string]EnvironmentInfo
-	projectIDToEnvironmentIDs          map[string][]string
-	projectIDToProductionEnvironmentID map[string]string
+	logger       *logrus.Entry
+	fleetManager *FleetManager
+	records      []Environment
 }
 
 func NewEnvironmentManager(fleetManager *FleetManager) *EnvironmentManager {
 	return &EnvironmentManager{
-		fleetManager:                       fleetManager,
-		logger:                             fleetManager.rootLogger.WithField("component", "EnvironmentManager"),
-		records:                            map[string]EnvironmentInfo{},
-		projectIDToEnvironmentIDs:          map[string][]string{},
-		projectIDToProductionEnvironmentID: map[string]string{},
+		fleetManager: fleetManager,
+		logger:       fleetManager.rootLogger.WithField("component", "EnvironmentManager"),
+		records:      []Environment{},
 	}
 }
 
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
+func (em *EnvironmentManager) GetOrCreate(projectInfo *ProjectInfo, ref string) (*Environment, error) {
+	// Check if we already have the environment loaded
+	for _, env := range em.records {
+		if env.ProjectID == projectInfo.ProjectID && env.Ref == ref {
+			return &env, nil
 		}
 	}
-	return false
+
+	// Create a new environment
+	env := &Environment{
+		ProjectID:        projectInfo.ProjectID,
+		Project:          projectInfo,
+		Ref:              ref,
+		InfoFetchedAt:    time.Unix(0, 0),
+		DetailsFetchedAt: time.Unix(0, 0),
+		Info:             nil,
+		Details:          nil,
+	}
+
+	em.records = append(em.records, *env)
+
+	return env, nil
 }
 
-func (pm *EnvironmentManager) FindProductionEnvironment(projectInfo *ProjectInfo, ctx context.Context) (*EnvironmentInfo, error) {
-	pm.logger.WithField("project", projectInfo.ProjectID).Info("Loading production environment")
-	args := []string{"env:info", "--format=csv", "--project", projectInfo.ProjectID, "-e", ".", "--columns=*"}
+func (pm *EnvironmentManager) LoadDefaultEnvironment(projectInfo *ProjectInfo, ctx context.Context) (*Environment, error) {
+	return pm.loadEnvironment(projectInfo, ".", ctx)
+}
+
+func (pm *EnvironmentManager) loadEnvironment(projectInfo *ProjectInfo, ref string, ctx context.Context) (*Environment, error) {
+	logger := pm.logger.WithFields(logrus.Fields{"project": projectInfo.ProjectID, "ref": ref})
+	logger.Debug("Loading environment")
+
+	environment, err := pm.GetOrCreate(projectInfo, ref)
+	if err != nil {
+		return nil, err
+	}
+
+	args := []string{"env:info", "--format=csv", "--project", projectInfo.ProjectID, "-e", ref, "--columns=*"}
 	data, err := pm.fleetManager.GetExecOutputWithCtx(args, ctx)
 	if err != nil {
 		return nil, err
@@ -112,38 +149,32 @@ func (pm *EnvironmentManager) FindProductionEnvironment(projectInfo *ProjectInfo
 	}
 
 	environmentInfo := &EnvironmentInfo{
-		Project:       projectInfo,
-		ID:            values["id"],
-		MachineName:   values["machine_name"],
-		Title:         values["title"],
-		Status:        values["status"],
-		Type:          values["type"],
-		Created:       values["created_at"],
-		Updated:       values["updated_at"],
-		DetailsLoaded: true,
-		Details:       environmentDetails,
+		MachineName: values["machine_name"],
+		Title:       values["title"],
+		Status:      values["status"],
+		Type:        values["type"],
+		Created:     values["created_at"],
+		Updated:     values["updated_at"],
 	}
 
-	projectInfo.ProductionEnvironment = environmentInfo
-	projectInfo.ProductionLoaded = true
+	environment.Info = environmentInfo
+	environment.Details = environmentDetails
+	environment.InfoFetchedAt = time.Now()
+	environment.DetailsFetchedAt = time.Now()
 
-	pm.records[environmentInfo.ID] = *environmentInfo
-	pm.logger.WithField("project", projectInfo.ProjectID).Debug("Loaded production environment")
+	if environmentInfo.isDefault() {
+		projectInfo.DefaultEnvironment = environment
+	}
 
-	return environmentInfo, nil
+	logger.Debug("Finished loading the environment")
+
+	return environment, nil
 }
 
+// This method is not used and kept for potential future usage
 func (pm *EnvironmentManager) List(projectInfo *ProjectInfo) ([]EnvironmentInfo, error) {
-	// Check if we have already loaded the environments for this project
-	if envs, exists := pm.projectIDToEnvironmentIDs[projectInfo.ProjectID]; exists {
-		result := []EnvironmentInfo{}
-		for _, env := range envs {
-			result = append(result, pm.records[env])
-		}
-		return result, nil
-	}
-
 	pm.logger.Infof("Loading all environments for project %s", projectInfo.ProjectID)
+
 	result := []EnvironmentInfo{}
 	args := []string{"env:list", "--format=csv", "--project", projectInfo.ProjectID, "--columns=*"}
 	data, err := pm.fleetManager.GetExecOutput(args)
@@ -158,61 +189,25 @@ func (pm *EnvironmentManager) List(projectInfo *ProjectInfo) ([]EnvironmentInfo,
 	}
 
 	for _, record := range parser.GetRecords() {
-		recordID := record["ID"]
+		ref := record["ID"]
 
 		// 1. Record update or creation
-		existingRecord, exists := pm.records[recordID]
-		if !exists {
-			existingRecord = EnvironmentInfo{
-				Project:       projectInfo,
-				ID:            record["ID"],
-				MachineName:   record["Machine name"],
-				Title:         record["Title"],
-				Status:        record["Status"],
-				Type:          record["Type"],
-				Created:       record["Created"],
-				Updated:       record["Updated"],
-				DetailsLoaded: false,
-				Details:       nil,
-			}
-			pm.records[recordID] = existingRecord
-		} else {
-			existingRecord.Project = projectInfo
-			existingRecord.MachineName = record["Machine name"]
-			existingRecord.Title = record["Title"]
-			existingRecord.Status = record["Status"]
-			existingRecord.Type = record["Type"]
-			existingRecord.Created = record["Created"]
-			existingRecord.Updated = record["Updated"]
+		environment, err := pm.GetOrCreate(projectInfo, ref)
+		if err != nil {
+			return nil, err
 		}
 
-		// 2. Update the projectIDToEnvironmentIDs map
-		if _, found := pm.projectIDToEnvironmentIDs[projectInfo.ProjectID]; !found {
-			pm.projectIDToEnvironmentIDs[projectInfo.ProjectID] = []string{}
+		info := &EnvironmentInfo{
+			MachineName: record["Machine name"],
+			Title:       record["Title"],
+			Status:      record["Status"],
+			Type:        record["Type"],
+			Created:     record["Created"],
+			Updated:     record["Updated"],
 		}
-
-		if !contains(pm.projectIDToEnvironmentIDs[projectInfo.ProjectID], recordID) {
-			pm.projectIDToEnvironmentIDs[projectInfo.ProjectID] = append(pm.projectIDToEnvironmentIDs[projectInfo.ProjectID], recordID)
-		}
-
-		environment := EnvironmentInfo{
-			Project:       projectInfo,
-			ID:            record["ID"],
-			MachineName:   record["Machine name"],
-			Title:         record["Title"],
-			Status:        record["Status"],
-			Type:          record["Type"],
-			Created:       record["Created"],
-			Updated:       record["Updated"],
-			DetailsLoaded: false,
-			Details:       nil,
-		}
-
-		if environment.IsProduction() {
-			pm.projectIDToProductionEnvironmentID[projectInfo.ProjectID] = recordID
-		}
-
-		result = append(result, environment)
+		environment.Info = info
+		environment.InfoFetchedAt = time.Now()
+		result = append(result, *info)
 	}
 
 	return result, nil

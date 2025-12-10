@@ -24,12 +24,14 @@ type FleetManager struct {
 	rootLogger *logrus.Logger
 	logger     *logrus.Entry
 
+	cache *FleetCache
+
 	Organization *OrganizationManager
 	Project      *ProjectManager
 	Environment  *EnvironmentManager
 }
 
-func NewFleetManager(cnf *config.Config, cmd *cobra.Command) *FleetManager {
+func NewFleetManager(cnf *config.Config, cmd *cobra.Command, cache *FleetCache) *FleetManager {
 	logger := logrus.New()
 	if os.Getenv("INFO") == "true" {
 		logger.SetLevel(logrus.InfoLevel)
@@ -50,6 +52,7 @@ func NewFleetManager(cnf *config.Config, cmd *cobra.Command) *FleetManager {
 		command:    cmd,
 		rootLogger: logger,
 		logger:     logger.WithField("component", "FleetManager"),
+		cache:      cache,
 	}
 
 	fleetManager.Organization = NewOrganizationManager(fleetManager)

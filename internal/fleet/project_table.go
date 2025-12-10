@@ -165,31 +165,25 @@ func (v *projectTable) redraw() {
 				Expansion:   1,
 			})
 
-			defaultEnvironment := project.ProductionEnvironment
-			if defaultEnvironment == nil {
-				v.SetCell(i+1, 2, &tview.TableCell{
-					Text:        tview.Escape("<unknown>"),
-					Transparent: true,
-					Clicked:     handleClick,
-				})
-				v.SetCell(i+1, 3, &tview.TableCell{
-					Text:        "",
-					Transparent: true,
-					Clicked:     handleClick,
-				})
-			} else {
+			defaultEnvironment := project.DefaultEnvironment
+			titleText := ""
+			statusText := ""
 
-				v.SetCell(i+1, 2, &tview.TableCell{
-					Text:        tview.Escape(defaultEnvironment.Title),
-					Transparent: true,
-					Clicked:     handleClick,
-				})
-				v.SetCell(i+1, 3, &tview.TableCell{
-					Text:        tview.Escape(defaultEnvironment.Status),
-					Transparent: true,
-					Clicked:     handleClick,
-				})
+			if defaultEnvironment != nil && defaultEnvironment.Info != nil {
+				titleText = defaultEnvironment.Info.Title
+				statusText = defaultEnvironment.Info.Status
 			}
+
+			v.SetCell(i+1, 2, &tview.TableCell{
+				Text:        tview.Escape(titleText),
+				Transparent: true,
+				Clicked:     handleClick,
+			})
+			v.SetCell(i+1, 3, &tview.TableCell{
+				Text:        tview.Escape(statusText),
+				Transparent: true,
+				Clicked:     handleClick,
+			})
 		}
 	})
 }
@@ -206,9 +200,9 @@ func (v *projectTable) HandleKeybinding(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
 	case 'o':
 		if v.selected != nil {
-			defaultEnvironment := v.selected.ProductionEnvironment
-			if defaultEnvironment != nil {
-				OpenURL("https://console.upsun.com/" + v.selected.OrganizationName + "/" + v.selected.ProjectID + "/" + defaultEnvironment.Title)
+			defaultEnvironment := v.selected.DefaultEnvironment
+			if defaultEnvironment != nil && defaultEnvironment.Info != nil {
+				OpenURL("https://console.upsun.com/" + v.selected.OrganizationName + "/" + v.selected.ProjectID + "/" + defaultEnvironment.Info.Title)
 			} else {
 				OpenURL("https://console.upsun.com/" + v.selected.OrganizationName + "/" + v.selected.ProjectID)
 			}
