@@ -7,17 +7,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func jsonError(err error) string {
-	errorObj := map[string]string{
-		"error": err.Error(),
-	}
-	bytes, err := json.Marshal(errorObj)
-	if err != nil {
-		panic(err)
-	}
-	return string(bytes)
-}
-
 //
 // OrganizationManager
 //

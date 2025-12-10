@@ -31,7 +31,7 @@ type FleetManager struct {
 	Environment  *EnvironmentManager
 }
 
-func NewFleetManager(cnf *config.Config, cmd *cobra.Command, cache *FleetCache) *FleetManager {
+func NewFleetManager(cnf *config.Config, cmd *cobra.Command, cacheDir string) *FleetManager {
 	logger := logrus.New()
 	if os.Getenv("INFO") == "true" {
 		logger.SetLevel(logrus.InfoLevel)
@@ -46,6 +46,8 @@ func NewFleetManager(cnf *config.Config, cmd *cobra.Command, cache *FleetCache) 
 	logger.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
+
+	cache := NewFleetCache(cacheDir, logger.WithField("component", "FleetCache"))
 
 	fleetManager := &FleetManager{
 		config:     cnf,

@@ -104,7 +104,7 @@ func (pm *ProjectManager) ListAll(ctx context.Context) ([]ProjectInfo, error) {
 			Created:            record["Created"],
 			DefaultEnvironment: nil,
 		}
-		defaultEnv, err := pm.fleetManager.Environment.GetOrCreate(&project, ".")
+		defaultEnv := pm.fleetManager.Environment.GetOrCreate(&project, ".")
 		if err != nil {
 			pm.logger.Warnf("Failed to get default environment for project %s: %v", project.ProjectID, err)
 

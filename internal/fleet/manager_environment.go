@@ -2,6 +2,7 @@ package fleet
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -25,6 +26,14 @@ type Environment struct {
 	DetailsFetchedAt time.Time           `json:"details_fetched_at"`
 	Info             *EnvironmentInfo    `json:"info"`
 	Details          *EnvironmentDetails `json:"details"`
+}
+
+func (env *Environment) ToJson() []byte {
+	bytes, err := json.Marshal(env)
+	if err != nil {
+		panic(err)
+	}
+	return bytes
 }
 
 func (env *Environment) IsDefault() bool {
@@ -72,12 +81,17 @@ func NewEnvironmentManager(fleetManager *FleetManager) *EnvironmentManager {
 	}
 }
 
-func (em *EnvironmentManager) GetOrCreate(projectInfo *ProjectInfo, ref string) (*Environment, error) {
+func (em *EnvironmentManager) GetOrCreate(projectInfo *ProjectInfo, ref string) *Environment {
 	// Check if we already have the environment loaded
 	for _, env := range em.records {
 		if env.ProjectID == projectInfo.ProjectID && env.Ref == ref {
-			return &env, nil
+			return &env
 		}
+	}
+
+	// Try to load from cache
+	if env := em.loadFromCache(projectInfo, ref); env != nil {
+		return env
 	}
 
 	// Create a new environment
@@ -93,24 +107,48 @@ func (em *EnvironmentManager) GetOrCreate(projectInfo *ProjectInfo, ref string) 
 
 	em.records = append(em.records, *env)
 
-	return env, nil
+	return env
 }
 
-func (pm *EnvironmentManager) LoadDefaultEnvironment(projectInfo *ProjectInfo, ctx context.Context) (*Environment, error) {
-	return pm.loadEnvironment(projectInfo, ".", ctx)
-}
-
-func (pm *EnvironmentManager) loadEnvironment(projectInfo *ProjectInfo, ref string, ctx context.Context) (*Environment, error) {
-	logger := pm.logger.WithFields(logrus.Fields{"project": projectInfo.ProjectID, "ref": ref})
-	logger.Debug("Loading environment")
-
-	environment, err := pm.GetOrCreate(projectInfo, ref)
+func (em *EnvironmentManager) Save(environment *Environment) error {
+	cacheKey := getCacheKeyForEnvironment(environment.Project, environment.Ref)
+	err := em.fleetManager.cache.Write(cacheKey, environment.ToJson())
 	if err != nil {
-		return nil, err
+		return err
 	}
 
+	return nil
+}
+
+func (em *EnvironmentManager) loadFromCache(projectInfo *ProjectInfo, ref string) *Environment {
+	cacheKey := getCacheKeyForEnvironment(projectInfo, ref)
+	data := em.fleetManager.cache.Read(cacheKey)
+	var environment Environment
+	err := json.Unmarshal(data, &environment)
+	if err != nil {
+		em.logger.Warnf("Failed to unmarshal environment from cache: %v", err)
+		return nil
+	}
+	environment.Project = projectInfo
+	return &environment
+}
+
+func getCacheKeyForEnvironment(projectInfo *ProjectInfo, ref string) string {
+	return "env/" + projectInfo.ProjectID + "-" + ref
+}
+
+func (em *EnvironmentManager) LoadDefaultEnvironment(projectInfo *ProjectInfo, ctx context.Context) (*Environment, error) {
+	return em.loadEnvironment(projectInfo, ".", ctx)
+}
+
+func (em *EnvironmentManager) loadEnvironment(projectInfo *ProjectInfo, ref string, ctx context.Context) (*Environment, error) {
+	logger := em.logger.WithFields(logrus.Fields{"project": projectInfo.ProjectID, "ref": ref})
+	logger.Debug("Loading environment")
+
+	environment := em.GetOrCreate(projectInfo, ref)
+
 	args := []string{"env:info", "--format=csv", "--project", projectInfo.ProjectID, "-e", ref, "--columns=*"}
-	data, err := pm.fleetManager.GetExecOutputWithCtx(args, ctx)
+	data, err := em.fleetManager.GetExecOutputWithCtx(args, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -168,16 +206,18 @@ func (pm *EnvironmentManager) loadEnvironment(projectInfo *ProjectInfo, ref stri
 
 	logger.Debug("Finished loading the environment")
 
+	em.Save(environment)
+
 	return environment, nil
 }
 
 // This method is not used and kept for potential future usage
-func (pm *EnvironmentManager) List(projectInfo *ProjectInfo) ([]Environment, error) {
-	pm.logger.Infof("Loading all environments for project %s", projectInfo.ProjectID)
+func (em *EnvironmentManager) List(projectInfo *ProjectInfo) ([]Environment, error) {
+	em.logger.Infof("Loading all environments for project %s", projectInfo.ProjectID)
 
 	result := []Environment{}
 	args := []string{"env:list", "--format=csv", "--project", projectInfo.ProjectID, "--columns=*"}
-	data, err := pm.fleetManager.GetExecOutput(args)
+	data, err := em.fleetManager.GetExecOutput(args)
 
 	if err != nil {
 		return nil, err
@@ -192,10 +232,7 @@ func (pm *EnvironmentManager) List(projectInfo *ProjectInfo) ([]Environment, err
 		ref := record["ID"]
 
 		// 1. Record update or creation
-		environment, err := pm.GetOrCreate(projectInfo, ref)
-		if err != nil {
-			return nil, err
-		}
+		environment := em.GetOrCreate(projectInfo, ref)
 
 		info := &EnvironmentInfo{
 			MachineName: record["Machine name"],
@@ -207,6 +244,7 @@ func (pm *EnvironmentManager) List(projectInfo *ProjectInfo) ([]Environment, err
 		}
 		environment.Info = info
 		environment.InfoFetchedAt = time.Now()
+		em.Save(environment)
 		result = append(result, *environment)
 	}
 

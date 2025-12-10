@@ -52,8 +52,7 @@ func newFleetCommand(cnf *config.Config) *cobra.Command {
 				err = fmt.Errorf("could not create fleet cache directory: %w", err)
 				exitWithError(err)
 			}
-			cache := fleet.NewFleetCache(cacheDir)
-			manager := fleet.NewFleetManager(cnf, cmd, cache)
+			manager := fleet.NewFleetManager(cnf, cmd, cacheDir)
 
 			isAuthenticated, _, err := manager.Authentication()
 			if err != nil {
