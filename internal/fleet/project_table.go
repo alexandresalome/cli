@@ -81,6 +81,25 @@ func (v *projectTable) reload() {
 			return projects[i].ProjectTitle < projects[j].ProjectTitle
 		})
 		v.projects = projects
+		// select best environment
+		found := -1
+		if v.selected != nil {
+			for i, project := range v.projects {
+				if project.ProjectID == v.selected.ProjectID {
+					found = i
+					break
+				}
+			}
+		}
+		if found < 0 && len(v.projects) > 0 {
+			found = 0
+		}
+		if found < 0 {
+			v.setSelected(nil)
+		} else {
+			v.setSelected(&v.projects[found])
+			v.Select(found+1, 0)
+		}
 		v.redraw()
 		v.ScrollToBeginning()
 
