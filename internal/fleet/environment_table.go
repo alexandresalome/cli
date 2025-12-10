@@ -12,9 +12,9 @@ type environmentTable struct {
 	*tview.Table
 	app           *tview.Application
 	manager       *FleetManager
-	onChange      func(*EnvironmentInfo)
-	environments  []EnvironmentInfo
-	selected      *EnvironmentInfo
+	onChange      func(*Environment)
+	environments  []Environment
+	selected      *Environment
 	stopChan      chan int
 	project       *ProjectInfo
 	loadingCancel context.CancelFunc
@@ -51,11 +51,11 @@ func newEnvironmentTable(app *tview.Application, manager *FleetManager) *environ
 func (v *environmentTable) setProject(project *ProjectInfo) {
 	v.project = project
 	if project != nil {
-		v.selected = project.ProductionEnvironment
+		v.selected = project.DefaultEnvironment
 	} else {
 		v.selected = nil
 	}
-	v.environments = make([]EnvironmentInfo, 0)
+	v.environments = make([]Environment, 0)
 
 	go v.app.QueueUpdateDraw(func() {
 		v.Clear()
@@ -70,7 +70,7 @@ func (v *environmentTable) name() string {
 
 func (v *environmentTable) reload(force bool) {
 	if v.project == nil {
-		v.environments = make([]EnvironmentInfo, 0)
+		v.environments = make([]Environment, 0)
 		v.redraw()
 
 		return
@@ -80,14 +80,15 @@ func (v *environmentTable) reload(force bool) {
 		environments, _ := v.manager.Environment.List(v.project)
 
 		sort.Slice(environments, func(i, j int) bool {
-			return environments[i].Title < environments[j].Title
+
+			return environments[i].Info.Title < environments[j].Info.Title
 		})
 
 		v.environments = environments
 		if v.selected != nil {
 			found := -1
 			for i, env := range v.environments {
-				if env.ID == v.selected.ID {
+				if env.Ref == v.selected.Ref {
 					found = i
 					break
 				}
@@ -139,20 +140,20 @@ func (v *environmentTable) redraw() {
 				return true
 			}
 			v.SetCell(i+1, 0, &tview.TableCell{
-				Text:        tview.Escape(environment.ID),
+				Text:        tview.Escape(environment.Ref),
 				Transparent: true,
 				Clicked:     handleClick,
 			})
 
 			v.SetCell(i+1, 1, &tview.TableCell{
-				Text:        tview.Escape(environment.Title),
+				Text:        tview.Escape(environment.Info.Title),
 				Transparent: true,
 				Clicked:     handleClick,
 				Expansion:   1,
 			})
 
 			v.SetCell(i+1, 2, &tview.TableCell{
-				Text:        tview.Escape(environment.Status),
+				Text:        tview.Escape(environment.Info.Status),
 				Transparent: true,
 				Clicked:     handleClick,
 				Expansion:   1,
@@ -161,7 +162,7 @@ func (v *environmentTable) redraw() {
 	})
 }
 
-func (v *environmentTable) handleSelect(row int, environment EnvironmentInfo) {
+func (v *environmentTable) handleSelect(row int, environment Environment) {
 	v.Select(row, 0)
 	v.selected = &environment
 	if v.onChange != nil {
@@ -174,7 +175,7 @@ func (v *environmentTable) HandleKeybinding(event *tcell.EventKey) *tcell.EventK
 	case 'o':
 		if v.project != nil {
 			if v.selected != nil {
-				OpenURL("https://console.upsun.com/" + v.project.OrganizationName + "/" + v.project.ProjectID + "/" + v.selected.ID)
+				OpenURL("https://console.upsun.com/" + v.project.OrganizationName + "/" + v.project.ProjectID + "/" + v.selected.Ref)
 			} else {
 				OpenURL("https://console.upsun.com/" + v.project.OrganizationName + "/" + v.project.ProjectID)
 			}

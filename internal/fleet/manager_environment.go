@@ -172,10 +172,10 @@ func (pm *EnvironmentManager) loadEnvironment(projectInfo *ProjectInfo, ref stri
 }
 
 // This method is not used and kept for potential future usage
-func (pm *EnvironmentManager) List(projectInfo *ProjectInfo) ([]EnvironmentInfo, error) {
+func (pm *EnvironmentManager) List(projectInfo *ProjectInfo) ([]Environment, error) {
 	pm.logger.Infof("Loading all environments for project %s", projectInfo.ProjectID)
 
-	result := []EnvironmentInfo{}
+	result := []Environment{}
 	args := []string{"env:list", "--format=csv", "--project", projectInfo.ProjectID, "--columns=*"}
 	data, err := pm.fleetManager.GetExecOutput(args)
 
@@ -207,7 +207,7 @@ func (pm *EnvironmentManager) List(projectInfo *ProjectInfo) ([]EnvironmentInfo,
 		}
 		environment.Info = info
 		environment.InfoFetchedAt = time.Now()
-		result = append(result, *info)
+		result = append(result, *environment)
 	}
 
 	return result, nil
