@@ -4,13 +4,11 @@ import "github.com/rivo/tview"
 
 type panel interface {
 	tview.Primitive
-	name() string
 	reload()
 }
 
 type panels struct {
-	currentPanel int
-	panel        []panel
+	panel []panel
 }
 
 func (g *Gui) reload() {
@@ -19,32 +17,34 @@ func (g *Gui) reload() {
 	}
 }
 
+func (g *Gui) currentFocus() int {
+	item := g.app.GetFocus()
+	x, y, width, height := item.GetRect()
+	for i, panel := range g.state.panels.panel {
+		px, py, pwidth, pheight := panel.GetRect()
+		if x >= px && y >= py && x+width <= px+pwidth && y+height <= py+pheight {
+
+			return i
+		}
+	}
+
+	return 0
+}
+
 func (g *Gui) nextPanel() {
-	idx := (g.state.panels.currentPanel + 1) % len(g.state.panels.panel)
-	g.switchPanel(g.state.panels.panel[idx].name())
+	current := g.currentFocus()
+	next := (current + 1) % len(g.state.panels.panel)
+
+	g.app.SetFocus(g.state.panels.panel[next])
 }
 
 func (g *Gui) prevPanel() {
-	g.state.panels.currentPanel--
+	current := g.currentFocus()
+	next := current - 1
 
-	if g.state.panels.currentPanel < 0 {
-		g.state.panels.currentPanel = len(g.state.panels.panel) - 1
+	if next < 0 {
+		next = len(g.state.panels.panel) - 1
 	}
 
-	idx := (g.state.panels.currentPanel) % len(g.state.panels.panel)
-	g.switchPanel(g.state.panels.panel[idx].name())
-}
-
-func (g *Gui) switchPanel(panelName string) {
-	for i, panel := range g.state.panels.panel {
-		if panel.name() == panelName {
-			g.app.SetFocus(panel)
-			g.state.panels.currentPanel = i
-		}
-	}
-}
-
-func (g *Gui) closeAndSwitchPanel(removePanel, switchPanel string) {
-	//g.pages.RemovePage(removePanel).ShowPage("main")
-	g.switchPanel(switchPanel)
+	g.app.SetFocus(g.state.panels.panel[next])
 }

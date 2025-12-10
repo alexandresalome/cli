@@ -54,10 +54,6 @@ func (v *environmentTable) setProject(project *ProjectInfo) {
 	v.reload()
 }
 
-func (v *environmentTable) name() string {
-	return "Environments"
-}
-
 func (v *environmentTable) reload() {
 	if v.loadingCancel != nil {
 		v.loadingCancel()

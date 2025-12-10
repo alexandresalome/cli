@@ -76,7 +76,7 @@ func (g *Gui) init() {
 		g.app.SetFocus(projectTable)
 	}
 
-	g.state.panels.panel = append(g.state.panels.panel, organizationTable, projectTable, environmentTable)
+	g.state.panels.panel = append(g.state.panels.panel, organizationTable, projectTable, environmentTable, infoBox)
 
 	flex := tview.NewFlex().SetDirection(tview.FlexColumn).
 		AddItem(organizationTable, 0, 1, true).

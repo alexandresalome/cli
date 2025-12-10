@@ -53,10 +53,6 @@ func newOrganizationTable(app *tview.Application, manager *FleetManager) *organi
 	return organizationTable
 }
 
-func (v *organizationTable) name() string {
-	return "Organizations"
-}
-
 func (v *organizationTable) reload() {
 	if v.loadingCancel != nil {
 		v.loadingCancel()

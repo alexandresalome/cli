@@ -56,10 +56,6 @@ func (v *projectTable) setOrganization(organization *OrganizationInfo) {
 	v.reload()
 }
 
-func (v *projectTable) name() string {
-	return "Projects"
-}
-
 func (v *projectTable) reload() {
 	if v.loadingCancel != nil {
 		v.loadingCancel()

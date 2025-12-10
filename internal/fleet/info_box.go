@@ -19,16 +19,14 @@ func newInfoBox(app *tview.Application, manager *FleetManager) *infoBox {
 		manager: manager,
 	}
 
+	infoBox.SetBorder(true)
+
 	return infoBox
 }
 
 func (v *infoBox) setEnvironment(environment *Environment) {
 	v.environment = environment
 	v.reload()
-}
-
-func (v *infoBox) name() string {
-	return "Info"
 }
 
 func (v *infoBox) reload() {
