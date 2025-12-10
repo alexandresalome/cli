@@ -1,6 +1,8 @@
 package fleet
 
 import (
+	"context"
+
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 )
@@ -68,9 +70,10 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-func (pm *EnvironmentManager) FindProductionEnvironment(projectInfo *ProjectInfo) (*EnvironmentInfo, error) {
+func (pm *EnvironmentManager) FindProductionEnvironment(projectInfo *ProjectInfo, ctx context.Context) (*EnvironmentInfo, error) {
+	pm.logger.WithField("project", projectInfo.ProjectID).Info("Loading production environment")
 	args := []string{"env:info", "--format=csv", "--project", projectInfo.ProjectID, "-e", ".", "--columns=*"}
-	data, err := pm.fleetManager.GetExecOutput(args)
+	data, err := pm.fleetManager.GetExecOutputWithCtx(args, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +128,7 @@ func (pm *EnvironmentManager) FindProductionEnvironment(projectInfo *ProjectInfo
 	projectInfo.ProductionLoaded = true
 
 	pm.records[environmentInfo.ID] = *environmentInfo
+	pm.logger.WithField("project", projectInfo.ProjectID).Debug("Loaded production environment")
 
 	return environmentInfo, nil
 }

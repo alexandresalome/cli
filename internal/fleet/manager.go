@@ -2,6 +2,7 @@ package fleet
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 
@@ -92,6 +93,9 @@ func (m *FleetManager) Exec(arguments []string) error {
 // GetExecOutput executes a command in the Fleet CLI context and returns its
 // output as a string.
 func (m *FleetManager) GetExecOutput(arguments []string) (string, error) {
+	return m.GetExecOutputWithCtx(arguments, m.command.Context())
+}
+func (m *FleetManager) GetExecOutputWithCtx(arguments []string, ctx context.Context) (string, error) {
 	// buffers inmemory
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -99,7 +103,7 @@ func (m *FleetManager) GetExecOutput(arguments []string) (string, error) {
 	wrapper := m.createCliWrapper(&stdout, &stderr, nil)
 
 	m.logger.Tracef("Executing command: %s", arguments)
-	if err := wrapper.Exec(m.command.Context(), arguments...); err != nil {
+	if err := wrapper.Exec(ctx, arguments...); err != nil {
 		newError := err
 		if stderr.Len() > 0 {
 			newError = &FleetManagerProcessError{

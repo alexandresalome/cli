@@ -56,10 +56,6 @@ func (v *projectTable) setOrganization(organization *OrganizationInfo) {
 		v.Clear()
 	})
 
-	if v.loadingCancel != nil {
-		v.loadingCancel()
-		v.loadingCancel = nil
-	}
 	v.reload(true)
 }
 
@@ -70,7 +66,6 @@ func (v *projectTable) name() string {
 func (v *projectTable) reload(force bool) {
 	if v.loadingCancel != nil {
 		v.loadingCancel()
-		v.loadingCancel = nil
 	}
 
 	if v.organization == nil {
@@ -83,7 +78,7 @@ func (v *projectTable) reload(force bool) {
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	v.loadingCancel = cancelCtx
 	spinTitle(v.app, v, "Projects", func() {
-		projectChan := v.manager.Project.Subscribe(v.organization)
+		projectChan := v.manager.Project.Subscribe(v.organization, ctx)
 		projectMap := make(map[string]ProjectInfo)
 
 		for {
@@ -108,7 +103,6 @@ func (v *projectTable) reload(force bool) {
 				v.redraw()
 			}
 		}
-		v.loadingCancel = nil
 	})
 }
 
@@ -147,23 +141,21 @@ func (v *projectTable) redraw() {
 		}
 
 		for i, project := range v.projects {
+			handleClick := func() bool {
+				v.handleSelect(i+1, project)
+				return true
+			}
 			v.SetCell(i+1, 0, &tview.TableCell{
 				Text:        tview.Escape(project.ProjectID),
 				Transparent: true,
-				Clicked: func() bool {
-					v.handleSelect(i+1, project)
-					return true
-				},
+				Clicked:     handleClick,
 			})
 
 			v.SetCell(i+1, 1, &tview.TableCell{
 				Text:        tview.Escape(project.ProjectTitle),
 				Transparent: true,
-				Clicked: func() bool {
-					v.handleSelect(i+1, project)
-					return true
-				},
-				Expansion: 1,
+				Clicked:     handleClick,
+				Expansion:   1,
 			})
 
 			defaultEnvironment := project.ProductionEnvironment
@@ -171,28 +163,24 @@ func (v *projectTable) redraw() {
 				v.SetCell(i+1, 2, &tview.TableCell{
 					Text:        tview.Escape("<unknown>"),
 					Transparent: true,
-					Clicked: func() bool {
-						v.handleSelect(i+1, project)
-						return true
-					},
+					Clicked:     handleClick,
+				})
+				v.SetCell(i+1, 3, &tview.TableCell{
+					Text:        "",
+					Transparent: true,
+					Clicked:     handleClick,
 				})
 			} else {
 
 				v.SetCell(i+1, 2, &tview.TableCell{
 					Text:        tview.Escape(defaultEnvironment.Title),
 					Transparent: true,
-					Clicked: func() bool {
-						v.handleSelect(i+1, project)
-						return true
-					},
+					Clicked:     handleClick,
 				})
 				v.SetCell(i+1, 3, &tview.TableCell{
 					Text:        tview.Escape(defaultEnvironment.Status),
 					Transparent: true,
-					Clicked: func() bool {
-						v.handleSelect(i+1, project)
-						return true
-					},
+					Clicked:     handleClick,
 				})
 			}
 		}

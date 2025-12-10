@@ -1,6 +1,7 @@
 package fleet
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/sirupsen/logrus"
@@ -45,8 +46,8 @@ func NewProjectManager(fleetManager *FleetManager) *ProjectManager {
 	}
 }
 
-func (pm *ProjectManager) List(organization *OrganizationInfo) ([]ProjectInfo, error) {
-	allProjects, err := pm.ListAll()
+func (pm *ProjectManager) List(organization *OrganizationInfo, ctx context.Context) ([]ProjectInfo, error) {
+	allProjects, err := pm.ListAll(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +66,7 @@ func (pm *ProjectManager) List(organization *OrganizationInfo) ([]ProjectInfo, e
 	return filtered, nil
 }
 
-func (pm *ProjectManager) ListAll() ([]ProjectInfo, error) {
+func (pm *ProjectManager) ListAll(ctx context.Context) ([]ProjectInfo, error) {
 	if pm.loaded {
 		return pm.records, nil
 	}
@@ -74,7 +75,7 @@ func (pm *ProjectManager) ListAll() ([]ProjectInfo, error) {
 	args := []string{"project:list", "--format=csv", "--count=0", "--columns=*"}
 
 	pm.logger.Info("Loading projects")
-	data, err := pm.fleetManager.GetExecOutput(args)
+	data, err := pm.fleetManager.GetExecOutputWithCtx(args, ctx)
 
 	if err != nil {
 		return nil, err
@@ -115,18 +116,18 @@ func (pm *ProjectManager) ListAll() ([]ProjectInfo, error) {
 	return result, nil
 }
 
-func (pm *ProjectManager) SubscribeAll() chan ProjectInfo {
-	return pm.Subscribe(nil)
+func (pm *ProjectManager) SubscribeAll(ctx context.Context) chan ProjectInfo {
+	return pm.Subscribe(nil, ctx)
 }
 
-func (pm *ProjectManager) Subscribe(organization *OrganizationInfo) chan ProjectInfo {
+func (pm *ProjectManager) Subscribe(organization *OrganizationInfo, ctx context.Context) chan ProjectInfo {
 	ch := make(chan ProjectInfo)
 
 	go func() {
-		projects, err := pm.List(organization)
 		defer func() {
 			close(ch)
 		}()
+		projects, err := pm.List(organization, ctx)
 
 		if err != nil {
 			return
@@ -139,12 +140,16 @@ func (pm *ProjectManager) Subscribe(organization *OrganizationInfo) chan Project
 
 		// Then, load and send environments for each project
 		for _, project := range projects {
-			env, err := pm.fleetManager.Environment.FindProductionEnvironment(&project)
+			env, err := pm.fleetManager.Environment.FindProductionEnvironment(&project, ctx)
 			if err == nil && env != nil {
 				project.ProductionEnvironment = env
 				project.ProductionLoaded = true
 			}
-			ch <- project
+			select {
+			case <-ctx.Done():
+				return
+			case ch <- project:
+			}
 		}
 	}()
 

@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -29,7 +30,7 @@ func startDataOutput(manager *fleet.FleetManager) {
 	}
 
 	// Projects
-	projects := manager.Project.SubscribeAll()
+	projects := manager.Project.SubscribeAll(context.Background())
 	for project := range projects {
 		fmt.Println(project.ToJson())
 	}
