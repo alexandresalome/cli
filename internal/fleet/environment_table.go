@@ -156,7 +156,10 @@ func (v *environmentTable) reload() {
 					v.setSelected(nil)
 				} else {
 					v.setSelected(&v.environments[found])
-					v.Select(found+1, 0)
+					row, _ := v.GetSelection()
+					if row != found+1 {
+						v.Select(found+1, 0)
+					}
 				}
 				v.redraw()
 			}
@@ -196,8 +199,8 @@ func (v *environmentTable) redraw() {
 
 			return
 		}
-		v.drawHeader(1, "Id", 10, 0)
-		v.drawHeader(0, "Status", 0, 1)
+		v.drawHeader(0, "Status", 10, 0)
+		v.drawHeader(1, "Id", 0, 1)
 		if len(v.environments) == 0 {
 			return
 		}
@@ -208,29 +211,31 @@ func (v *environmentTable) redraw() {
 				v.setSelected(&environment)
 				return true
 			}
-			deployStatus := ""
+
+			envTitle := environment.Ref
+			envStatus := "❔ "
 			if environment.IsDefault() {
-				deployStatus += "⭐ "
+				envTitle = "⭐ " + envTitle
 			}
 			if environment.Details != nil {
 				if environment.Details.LastDeploymentAt == "" {
-					deployStatus += "⏳ "
+					envStatus = "⏳ "
 				} else if environment.Details.LastDeploymentSuccessful {
-					deployStatus += "✅ "
+					envStatus = "✅ "
 				} else {
-					deployStatus += "🚩 "
+					envStatus = "🚩 "
 				}
 			}
-			deployStatus += environment.Info.Status
+			envStatus += environment.Info.Status
 
 			v.SetCell(i+1, 0, &tview.TableCell{
-				Text:        tview.Escape(deployStatus),
+				Text:        tview.Escape(envStatus),
 				Transparent: true,
 				Clicked:     handleClick,
 			})
 
 			v.SetCell(i+1, 1, &tview.TableCell{
-				Text:        tview.Escape(environment.Ref),
+				Text:        tview.Escape(envTitle),
 				Transparent: true,
 				Clicked:     handleClick,
 				Expansion:   1,
