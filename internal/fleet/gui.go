@@ -29,6 +29,15 @@ func New(manager *FleetManager) *Gui {
 }
 
 func (g *Gui) init() {
+	infoBox := newInfoBox(g.app, g.manager)
+	infoBox.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		event = g.HandleKeybinding(event)
+		if event == nil {
+			return nil
+		}
+		return infoBox.HandleKeybinding(event)
+	})
+
 	environmentTable := newEnvironmentTable(g.app, g.manager)
 	environmentTable.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		event = g.HandleKeybinding(event)
@@ -37,6 +46,9 @@ func (g *Gui) init() {
 		}
 		return environmentTable.HandleKeybinding(event)
 	})
+	environmentTable.onChange = func(e *Environment) {
+		infoBox.setEnvironment(e)
+	}
 
 	projectTable := newProjectTable(g.app, g.manager)
 	projectTable.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -48,7 +60,6 @@ func (g *Gui) init() {
 	})
 	projectTable.onChange = func(p *ProjectInfo) {
 		environmentTable.setProject(p)
-		g.app.SetFocus(environmentTable)
 	}
 
 	organizationTable := newOrganizationTable(g.app, g.manager)
@@ -71,7 +82,9 @@ func (g *Gui) init() {
 		AddItem(organizationTable, 0, 1, true).
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
 			AddItem(projectTable, 0, 1, true).
-			AddItem(environmentTable, 0, 1, false),
+			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
+				AddItem(environmentTable, 0, 1, true).
+				AddItem(infoBox, 0, 4, false), 0, 1, false),
 			0, 4, false)
 
 	g.app.SetRoot(flex, true).EnableMouse(true)

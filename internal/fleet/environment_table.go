@@ -36,11 +36,8 @@ func newEnvironmentTable(app *tview.Application, manager *FleetManager) *environ
 		if index < 0 || index >= len(environmentTable.environments) {
 			return
 		}
-		environment := &environmentTable.environments[index]
-		if environmentTable.onChange != nil {
-			environmentTable.onChange(environment)
-		}
-		environmentTable.selected = environment
+
+		environmentTable.setSelected(&environmentTable.environments[index])
 	})
 
 	environmentTable.reload()
@@ -50,16 +47,9 @@ func newEnvironmentTable(app *tview.Application, manager *FleetManager) *environ
 
 func (v *environmentTable) setProject(project *ProjectInfo) {
 	v.project = project
-	if project != nil {
-		v.selected = project.DefaultEnvironment
-	} else {
-		v.selected = nil
-	}
+	v.setSelected(nil)
 	v.environments = make([]Environment, 0)
-
-	go v.app.QueueUpdateDraw(func() {
-		v.Clear()
-	})
+	v.redraw()
 
 	v.reload()
 }
@@ -91,34 +81,48 @@ func (v *environmentTable) reload() {
 		})
 
 		v.environments = environments
+		// select best environment
+		found := -1
 		if v.selected != nil {
-			found := -1
 			for i, env := range v.environments {
 				if env.Ref == v.selected.Ref {
 					found = i
 					break
 				}
 			}
-			if found < 0 {
-				v.selected = nil
-			} else {
-				v.Select(found, 0)
+		}
+		if found < 0 && v.project != nil && v.project.DefaultEnvironment != nil {
+			for i, env := range v.environments {
+				if env.Ref == v.project.DefaultEnvironment.Ref {
+					found = i
+					break
+				}
 			}
 		}
+		if found < 0 && len(v.environments) > 0 {
+			found = 0
+		}
+		if found < 0 {
+			v.setSelected(nil)
+		} else {
+			v.setSelected(&v.environments[found])
+			v.Select(found+1, 0)
+		}
 		v.redraw()
+		v.ScrollToBeginning()
 	})
 }
 
 var environmentHeaders = []string{
-	"Id",
-	"Name",
 	"Status",
+	"Id",
 }
 
 func (v *environmentTable) redraw() {
 	go v.app.QueueUpdateDraw(func() {
 		v.Clear()
 		if v.project == nil {
+			v.ScrollToBeginning()
 			v.SetCell(0, 0, &tview.TableCell{
 				Text:          "<select a project>",
 				NotSelectable: true,
@@ -144,24 +148,29 @@ func (v *environmentTable) redraw() {
 
 		for i, environment := range v.environments {
 			handleClick := func() bool {
-				v.handleSelect(i+1, environment)
+				v.Select(i+1, 0)
+				v.setSelected(&environment)
 				return true
 			}
+			deployStatus := ""
+			if environment.Info != nil {
+				deployStatus = environment.Info.Status
+			}
+			if environment.Details != nil {
+				if environment.Details.LastDeploymentSuccessful {
+					deployStatus = "✅ " + environment.Info.Status
+				} else {
+					deployStatus = "🚩 " + environment.Info.Status
+				}
+			}
 			v.SetCell(i+1, 0, &tview.TableCell{
-				Text:        tview.Escape(environment.Ref),
+				Text:        tview.Escape(deployStatus),
 				Transparent: true,
 				Clicked:     handleClick,
 			})
 
 			v.SetCell(i+1, 1, &tview.TableCell{
-				Text:        tview.Escape(environment.Info.Title),
-				Transparent: true,
-				Clicked:     handleClick,
-				Expansion:   1,
-			})
-
-			v.SetCell(i+1, 2, &tview.TableCell{
-				Text:        tview.Escape(environment.Info.Status),
+				Text:        tview.Escape(environment.Ref),
 				Transparent: true,
 				Clicked:     handleClick,
 				Expansion:   1,
@@ -170,9 +179,8 @@ func (v *environmentTable) redraw() {
 	})
 }
 
-func (v *environmentTable) handleSelect(row int, environment Environment) {
-	v.Select(row, 0)
-	v.selected = &environment
+func (v *environmentTable) setSelected(environment *Environment) {
+	v.selected = environment
 	if v.onChange != nil {
 		v.onChange(v.selected)
 	}

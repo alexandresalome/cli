@@ -27,13 +27,13 @@ func spinTitle(app *tview.Application, box SetTitleable, title string, action fu
 		for {
 			select {
 			case _ = <-done:
-				app.QueueUpdateDraw(func() {
+				go app.QueueUpdateDraw(func() {
 					box.SetTitle(title)
 				})
 				return
 			case <-time.After(100 * time.Millisecond):
 				spin := i % len(spinners)
-				app.QueueUpdateDraw(func() {
+				go app.QueueUpdateDraw(func() {
 					box.SetTitle(title + " " + spinners[spin])
 				})
 				i++

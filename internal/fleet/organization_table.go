@@ -73,6 +73,7 @@ func (v *organizationTable) reload() {
 
 		v.organizations = organizations
 		v.redraw()
+		v.ScrollToBeginning()
 	})
 }
 

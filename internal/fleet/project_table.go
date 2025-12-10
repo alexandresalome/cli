@@ -37,13 +37,6 @@ func newProjectTable(app *tview.Application, manager *FleetManager) *projectTabl
 			return
 		}
 		projectTable.selected = &projectTable.projects[index]
-	})
-	projectTable.SetSelectedFunc(func(row, column int) {
-		index := row - 1
-		if index < 0 || index >= len(projectTable.projects) {
-			return
-		}
-		projectTable.selected = &projectTable.projects[index]
 		if projectTable.onChange != nil {
 			projectTable.onChange(projectTable.selected)
 		}
@@ -58,10 +51,7 @@ func (v *projectTable) setOrganization(organization *OrganizationInfo) {
 	v.organization = organization
 	v.selected = nil
 	v.projects = make([]ProjectInfo, 0)
-
-	go v.app.QueueUpdateDraw(func() {
-		v.Clear()
-	})
+	v.redraw()
 
 	v.reload()
 }
@@ -85,9 +75,19 @@ func (v *projectTable) reload() {
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	v.loadingCancel = cancelCtx
 	spinTitle(v.app, v, "Projects", func() {
-		projectChan := v.manager.Project.Subscribe(v.organization, ctx)
 		projectMap := make(map[string]ProjectInfo)
+		projects, _ := v.manager.Project.List(v.organization, ctx)
+		for _, project := range projects {
+			projectMap[project.ProjectID] = project
+		}
+		sort.Slice(projects, func(i, j int) bool {
+			return projects[i].ProjectTitle < projects[j].ProjectTitle
+		})
+		v.projects = projects
+		v.redraw()
+		v.ScrollToBeginning()
 
+		projectChan := v.manager.Project.Subscribe(v.organization, ctx)
 		for {
 			select {
 			case <-ctx.Done():
@@ -124,6 +124,7 @@ func (v *projectTable) redraw() {
 	go v.app.QueueUpdateDraw(func() {
 		v.Clear()
 		if v.organization == nil {
+			v.ScrollToBeginning()
 			v.SetCell(0, 0, &tview.TableCell{
 				Text:          "<select an org>",
 				NotSelectable: true,
@@ -142,9 +143,6 @@ func (v *projectTable) redraw() {
 				BackgroundColor: tcell.ColorDefault,
 				Attributes:      tcell.AttrBold,
 			})
-		}
-		if len(v.projects) == 0 {
-			return
 		}
 
 		for i, project := range v.projects {
