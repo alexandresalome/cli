@@ -93,9 +93,9 @@ func (v *environmentTable) reload() {
 				}
 			}
 		}
-		if found < 0 && v.project != nil && v.project.DefaultEnvironment != nil {
-			for i, env := range v.environments {
-				if env.Ref == v.project.DefaultEnvironment.Ref {
+		if found < 0 {
+			for i, e := range v.environments {
+				if e.IsDefault() {
 					found = i
 					break
 				}
@@ -133,7 +133,6 @@ func (v *environmentTable) reload() {
 				})
 				v.environments = newEnvs
 				// reselect
-				found := -1
 				if v.selected != nil {
 					for i, e := range v.environments {
 						if e.Ref == v.selected.Ref {
@@ -142,9 +141,9 @@ func (v *environmentTable) reload() {
 						}
 					}
 				}
-				if found < 0 && v.project != nil && v.project.DefaultEnvironment != nil {
+				if found < 0 {
 					for i, e := range v.environments {
-						if e.Ref == v.project.DefaultEnvironment.Ref {
+						if e.IsDefault() {
 							found = i
 							break
 						}
@@ -165,9 +164,21 @@ func (v *environmentTable) reload() {
 	})
 }
 
-var environmentHeaders = []string{
-	"Status",
-	"Id",
+func (v *environmentTable) drawHeader(col int, text string, minWidth int, expansion int) {
+	if len(text) < minWidth {
+		for len(text) < minWidth {
+			text += " "
+		}
+	}
+	v.SetCell(0, col, &tview.TableCell{
+		Text:            text,
+		NotSelectable:   true,
+		Align:           tview.AlignLeft,
+		Color:           tcell.ColorWhite,
+		BackgroundColor: tcell.ColorDefault,
+		Attributes:      tcell.AttrBold,
+		Expansion:       expansion,
+	})
 }
 
 func (v *environmentTable) redraw() {
@@ -185,16 +196,8 @@ func (v *environmentTable) redraw() {
 
 			return
 		}
-		for i, header := range environmentHeaders {
-			v.SetCell(0, i, &tview.TableCell{
-				Text:            header,
-				NotSelectable:   true,
-				Align:           tview.AlignLeft,
-				Color:           tcell.ColorWhite,
-				BackgroundColor: tcell.ColorDefault,
-				Attributes:      tcell.AttrBold,
-			})
-		}
+		v.drawHeader(1, "Id", 10, 0)
+		v.drawHeader(0, "Status", 0, 1)
 		if len(v.environments) == 0 {
 			return
 		}

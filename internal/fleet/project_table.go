@@ -131,13 +131,6 @@ func (v *projectTable) reload() {
 	})
 }
 
-var projectHeaders = []string{
-	"Id",
-	"Name",
-	"Environment",
-	"Status",
-}
-
 func humanizeTime(t string) (string, error) {
 	timeLayout := "2006-01-02T15:04:05Z07:00"
 	parsedTime, err := time.Parse(timeLayout, t)
@@ -168,6 +161,23 @@ func humanizeTime(t string) (string, error) {
 	}
 }
 
+func (v *projectTable) drawHeader(col int, text string, minWidth int, expansion int) {
+	if len(text) < minWidth {
+		for len(text) < minWidth {
+			text += " "
+		}
+	}
+	v.SetCell(0, col, &tview.TableCell{
+		Text:            text,
+		NotSelectable:   true,
+		Align:           tview.AlignLeft,
+		Color:           tcell.ColorWhite,
+		BackgroundColor: tcell.ColorDefault,
+		Attributes:      tcell.AttrBold,
+		Expansion:       expansion,
+	})
+}
+
 func (v *projectTable) redraw() {
 	go v.app.QueueUpdateDraw(func() {
 		v.logger.Debug("redrawing")
@@ -183,16 +193,11 @@ func (v *projectTable) redraw() {
 
 			return
 		}
-		for i, header := range projectHeaders {
-			v.SetCell(0, i, &tview.TableCell{
-				Text:            header,
-				NotSelectable:   true,
-				Align:           tview.AlignLeft,
-				Color:           tcell.ColorWhite,
-				BackgroundColor: tcell.ColorDefault,
-				Attributes:      tcell.AttrBold,
-			})
-		}
+
+		v.drawHeader(0, "Id", 13, 0)
+		v.drawHeader(1, "Name", 0, 1)
+		v.drawHeader(2, "Environment", 15, 0)
+		v.drawHeader(3, "Status", 15, 0)
 
 		for i, project := range v.projects {
 			handleClick := func() bool {
@@ -216,9 +221,12 @@ func (v *projectTable) redraw() {
 			defaultEnvironment := project.DefaultEnvironment
 			titleText := defaultEnvironment.Ref
 			statusText := ""
-			deployedAt := defaultEnvironment.Details.LastDeploymentAt
+			deployedAt := ""
+			if defaultEnvironment != nil && defaultEnvironment.Details != nil {
+				deployedAt = defaultEnvironment.Details.LastDeploymentAt
+			}
 
-			if deployedAt == "" {
+			if deployedAt == "" || defaultEnvironment == nil || defaultEnvironment.Details == nil {
 				statusText = "⏳ Not deployed"
 			} else {
 				if defaultEnvironment.Details.LastDeploymentSuccessful {

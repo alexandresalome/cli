@@ -84,7 +84,7 @@ func (g *Gui) init() {
 			AddItem(projectTable, 0, 1, true).
 			AddItem(tview.NewFlex().SetDirection(tview.FlexColumn).
 				AddItem(environmentTable, 0, 1, true).
-				AddItem(infoBox, 0, 4, false), 0, 1, false),
+				AddItem(infoBox, 0, 3, false), 0, 1, false),
 			0, 4, false)
 
 	g.app.SetRoot(flex, true).EnableMouse(true)
