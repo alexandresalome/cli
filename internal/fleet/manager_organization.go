@@ -1,6 +1,7 @@
 package fleet
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -48,7 +49,7 @@ func NewOrganizationManager(fleetManager *FleetManager) *OrganizationManager {
 }
 
 func (om *OrganizationManager) GetByID(id string) (*OrganizationInfo, error) {
-	organizations, err := om.ListAll()
+	organizations, err := om.ListAll(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -62,14 +63,14 @@ func (om *OrganizationManager) GetByID(id string) (*OrganizationInfo, error) {
 	return nil, fmt.Errorf("organization with ID %s not found", id)
 }
 
-func (om *OrganizationManager) ListAll() ([]OrganizationInfo, error) {
+func (om *OrganizationManager) ListAll(ctx context.Context) ([]OrganizationInfo, error) {
 	if om.loaded {
 		return om.records, nil
 	}
 
 	om.logger.Info("Loading organizations")
 	args := []string{"organization:list", "--format=csv", "--columns=*"}
-	data, err := om.fleetManager.GetExecOutput(args)
+	data, err := om.fleetManager.GetExecOutputWithCtx(args, ctx)
 
 	if err != nil {
 		return nil, err

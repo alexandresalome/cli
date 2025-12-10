@@ -13,7 +13,7 @@ func (g *Gui) HandleKeybinding(event *tcell.EventKey) *tcell.EventKey {
 
 	switch event.Key() {
 	case tcell.KeyCtrlR:
-		g.reload(true)
+		g.reload()
 		return nil
 	case tcell.KeyTab:
 		g.nextPanel()

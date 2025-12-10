@@ -1,8 +1,8 @@
 package fleet
 
 import (
+	"context"
 	"sort"
-	"sync"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -16,7 +16,7 @@ type organizationTable struct {
 	organizations []OrganizationInfo
 	selected      *OrganizationInfo
 	stopChan      chan int
-	reloadMutex   sync.Mutex
+	loadingCancel context.CancelFunc
 }
 
 func newOrganizationTable(app *tview.Application, manager *FleetManager) *organizationTable {
@@ -48,7 +48,7 @@ func newOrganizationTable(app *tview.Application, manager *FleetManager) *organi
 		}
 	})
 
-	organizationTable.reload(false)
+	organizationTable.reload()
 
 	return organizationTable
 }
@@ -57,18 +57,15 @@ func (v *organizationTable) name() string {
 	return "Organizations"
 }
 
-func (v *organizationTable) reload(force bool) {
-	if force {
-		v.reloadMutex.Lock()
-	} else {
-		if v.reloadMutex.TryLock() == false {
-			return
-		}
+func (v *organizationTable) reload() {
+	if v.loadingCancel != nil {
+		v.loadingCancel()
 	}
-	defer v.reloadMutex.Unlock()
 
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	v.loadingCancel = cancelCtx
 	spinTitle(v.app, v, "Organizations", func() {
-		organizations, _ := v.manager.Organization.ListAll()
+		organizations, _ := v.manager.Organization.ListAll(ctx)
 
 		sort.Slice(organizations, func(i, j int) bool {
 			return organizations[i].Label < organizations[j].Label

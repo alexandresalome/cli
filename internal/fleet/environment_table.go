@@ -43,7 +43,7 @@ func newEnvironmentTable(app *tview.Application, manager *FleetManager) *environ
 		environmentTable.selected = environment
 	})
 
-	environmentTable.reload(false)
+	environmentTable.reload()
 
 	return environmentTable
 }
@@ -61,14 +61,18 @@ func (v *environmentTable) setProject(project *ProjectInfo) {
 		v.Clear()
 	})
 
-	v.reload(true)
+	v.reload()
 }
 
 func (v *environmentTable) name() string {
 	return "Environments"
 }
 
-func (v *environmentTable) reload(force bool) {
+func (v *environmentTable) reload() {
+	if v.loadingCancel != nil {
+		v.loadingCancel()
+	}
+
 	if v.project == nil {
 		v.environments = make([]Environment, 0)
 		v.redraw()
@@ -76,8 +80,10 @@ func (v *environmentTable) reload(force bool) {
 		return
 	}
 
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	v.loadingCancel = cancelCtx
 	spinTitle(v.app, v, "Environments", func() {
-		environments, _ := v.manager.Environment.List(v.project)
+		environments, _ := v.manager.Environment.List(v.project, ctx)
 
 		sort.Slice(environments, func(i, j int) bool {
 
@@ -94,6 +100,8 @@ func (v *environmentTable) reload(force bool) {
 				}
 			}
 			if found < 0 {
+				v.selected = nil
+			} else {
 				v.Select(found, 0)
 			}
 		}

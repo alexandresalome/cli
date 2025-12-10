@@ -49,7 +49,7 @@ func newProjectTable(app *tview.Application, manager *FleetManager) *projectTabl
 		}
 	})
 
-	projectTable.reload(false)
+	projectTable.reload()
 
 	return projectTable
 }
@@ -63,14 +63,14 @@ func (v *projectTable) setOrganization(organization *OrganizationInfo) {
 		v.Clear()
 	})
 
-	v.reload(true)
+	v.reload()
 }
 
 func (v *projectTable) name() string {
 	return "Projects"
 }
 
-func (v *projectTable) reload(force bool) {
+func (v *projectTable) reload() {
 	if v.loadingCancel != nil {
 		v.loadingCancel()
 	}

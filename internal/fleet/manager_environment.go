@@ -212,12 +212,12 @@ func (em *EnvironmentManager) loadEnvironment(projectInfo *ProjectInfo, ref stri
 }
 
 // This method is not used and kept for potential future usage
-func (em *EnvironmentManager) List(projectInfo *ProjectInfo) ([]Environment, error) {
+func (em *EnvironmentManager) List(projectInfo *ProjectInfo, ctx context.Context) ([]Environment, error) {
 	em.logger.Infof("Loading all environments for project %s", projectInfo.ProjectID)
 
 	result := []Environment{}
 	args := []string{"env:list", "--format=csv", "--project", projectInfo.ProjectID, "--columns=*"}
-	data, err := em.fleetManager.GetExecOutput(args)
+	data, err := em.fleetManager.GetExecOutputWithCtx(args, ctx)
 
 	if err != nil {
 		return nil, err

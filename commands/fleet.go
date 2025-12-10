@@ -21,7 +21,7 @@ func startGui(manager *fleet.FleetManager) {
 func startDataOutput(manager *fleet.FleetManager) {
 
 	// Organizations
-	orgs, err := manager.Organization.ListAll()
+	orgs, err := manager.Organization.ListAll(context.Background())
 	if err != nil {
 		exitWithError(err)
 	}
