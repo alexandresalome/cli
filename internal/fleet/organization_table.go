@@ -70,24 +70,13 @@ func (v *organizationTable) reload(force bool) {
 	spinTitle(v.app, v, "Organizations", func() {
 		organizations, _ := v.manager.Organization.ListAll()
 
-		keys := make([]string, 0, len(organizations))
-		tmpMap := make(map[string]OrganizationInfo)
+		sort.Slice(organizations, func(i, j int) bool {
+			return organizations[i].Label < organizations[j].Label
+		})
 
-		for _, o := range organizations {
-			tmpMap[o.Label] = o
-
-			keys = append(keys, o.Label)
-		}
-
-		v.organizations = make([]OrganizationInfo, 0)
-		sort.Strings(keys)
-
-		for _, key := range keys {
-			v.organizations = append(v.organizations, tmpMap[key])
-		}
+		v.organizations = organizations
 		v.redraw()
 	})
-
 }
 
 var organizationHeaders = []string{

@@ -36,11 +36,17 @@ func newProjectTable(app *tview.Application, manager *FleetManager) *projectTabl
 		if index < 0 || index >= len(projectTable.projects) {
 			return
 		}
-		project := &projectTable.projects[index]
-		if projectTable.onChange != nil {
-			projectTable.onChange(project)
+		projectTable.selected = &projectTable.projects[index]
+	})
+	projectTable.SetSelectedFunc(func(row, column int) {
+		index := row - 1
+		if index < 0 || index >= len(projectTable.projects) {
+			return
 		}
-		projectTable.selected = project
+		projectTable.selected = &projectTable.projects[index]
+		if projectTable.onChange != nil {
+			projectTable.onChange(projectTable.selected)
+		}
 	})
 
 	projectTable.reload(false)
@@ -50,6 +56,7 @@ func newProjectTable(app *tview.Application, manager *FleetManager) *projectTabl
 
 func (v *projectTable) setOrganization(organization *OrganizationInfo) {
 	v.organization = organization
+	v.selected = nil
 	v.projects = make([]ProjectInfo, 0)
 
 	go v.app.QueueUpdateDraw(func() {
