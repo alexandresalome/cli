@@ -17,7 +17,6 @@ type environmentTable struct {
 	onChange      func(*Environment)
 	environments  []Environment
 	selected      *Environment
-	stopChan      chan int
 	project       *ProjectInfo
 	loadingCancel context.CancelFunc
 }
@@ -78,6 +77,11 @@ func (v *environmentTable) reload() {
 			return environments[i].Info.Title < environments[j].Info.Title
 		})
 
+		envMap := make(map[string]Environment)
+		for _, env := range environments {
+			envMap[env.Ref] = env
+		}
+
 		v.environments = environments
 		// select best environment
 		found := -1
@@ -108,6 +112,56 @@ func (v *environmentTable) reload() {
 		}
 		v.redraw()
 		v.ScrollToBeginning()
+
+		envChan := v.manager.Environment.Subscribe(v.project, ctx)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case env, ok := <-envChan:
+				if !ok {
+					return
+				}
+
+				envMap[env.Ref] = *env
+				newEnvs := make([]Environment, 0, len(envMap))
+				for _, e := range envMap {
+					newEnvs = append(newEnvs, e)
+				}
+				sort.Slice(newEnvs, func(i, j int) bool {
+					return newEnvs[i].Info.Title < newEnvs[j].Info.Title
+				})
+				v.environments = newEnvs
+				// reselect
+				found := -1
+				if v.selected != nil {
+					for i, e := range v.environments {
+						if e.Ref == v.selected.Ref {
+							found = i
+							break
+						}
+					}
+				}
+				if found < 0 && v.project != nil && v.project.DefaultEnvironment != nil {
+					for i, e := range v.environments {
+						if e.Ref == v.project.DefaultEnvironment.Ref {
+							found = i
+							break
+						}
+					}
+				}
+				if found < 0 && len(v.environments) > 0 {
+					found = 0
+				}
+				if found < 0 {
+					v.setSelected(nil)
+				} else {
+					v.setSelected(&v.environments[found])
+					v.Select(found+1, 0)
+				}
+				v.redraw()
+			}
+		}
 	})
 }
 

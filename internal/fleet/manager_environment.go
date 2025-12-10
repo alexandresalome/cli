@@ -262,3 +262,53 @@ func (em *EnvironmentManager) List(projectInfo *ProjectInfo, ctx context.Context
 
 	return result, nil
 }
+
+func (em *EnvironmentManager) Subscribe(project *ProjectInfo, ctx context.Context) chan *Environment {
+	ch := make(chan *Environment)
+	logger := em.logger.WithFields(logrus.Fields{"project": project.ProjectID})
+
+	logger.Infof("Starting subscription for project %s", project.ProjectID)
+	go func() {
+		defer func() {
+			close(ch)
+		}()
+
+		// List all environments
+		envs, err := em.fleetManager.Environment.List(project, ctx)
+		if err != nil {
+			logger.Errorf("Failed to load environments for project %s: %v", project.ProjectID, err)
+
+			return
+		}
+
+		for _, env := range envs {
+			select {
+			case <-ctx.Done():
+				logger.Debug("Project subscription cancelled")
+				return
+			case ch <- &env:
+				logger.Tracef("Sent environment update for %s:%s", project.ProjectID, env.Ref)
+			}
+		}
+
+		for _, env := range envs {
+			env, err := em.fleetManager.Environment.LoadEnvironment(project, env.Ref, ctx)
+			if err != nil {
+				logger.Errorf("Failed to load environment %s for project %s: %v", env.Ref, project.ProjectID, err)
+				continue
+			}
+
+			select {
+			case <-ctx.Done():
+				logger.Debug("Project subscription cancelled")
+				return
+			case ch <- env:
+				logger.Tracef("Sent environment update for %s:%s", project.ProjectID, env.Ref)
+			}
+		}
+
+		logger.Infof("Finished subscription for project %s", project.ProjectID)
+	}()
+
+	return ch
+}
