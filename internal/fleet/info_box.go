@@ -60,12 +60,20 @@ func (v *infoBox) redraw() {
 		}
 		if v.environment.Details != nil {
 			v.setField(i, "Domain", v.environment.Details.DefaultDomain)
-			v.setField(i+1, "Last Deploy At", v.environment.Details.LastDeploymentAt)
-			deploySuccess := "🚩"
-			if v.environment.Details.LastDeploymentSuccessful {
-				deploySuccess = "✅"
+
+			deploySuccess := ""
+			if v.environment.Details.LastDeploymentAt == "" {
+				deploySuccess = "⏳ Not deployed"
+			} else {
+				if v.environment.Details.LastDeploymentSuccessful {
+					deploySuccess = "✅ Success"
+				} else {
+					deploySuccess = "🚩 Failed"
+				}
 			}
-			v.setField(i+2, "Last Deploy Success", deploySuccess)
+
+			v.setField(i+1, "Last Deploy", deploySuccess)
+			v.setField(i+2, "Last Deploy At", v.environment.Details.LastDeploymentAt)
 			i += 3
 		}
 	})
