@@ -68,6 +68,44 @@ func (om *OrganizationManager) ListAll(ctx context.Context) ([]OrganizationInfo,
 		return om.records, nil
 	}
 
+	cached := om.fleetManager.cache.Read("organizations")
+	if cached != nil {
+		var organizations []OrganizationInfo
+		err := json.Unmarshal(cached, &organizations)
+		if err == nil {
+			om.logger.Debugf("Loaded %d organizations from cache", len(organizations))
+			om.loaded = true
+			om.records = organizations
+			return om.records, nil
+		}
+		om.logger.Warnf("Failed to load organizations from cache: %v", err)
+	}
+
+	result, err := om.loadAll(ctx)
+	if err != nil {
+		om.logger.Errorf("Failed to load organizations: %v", err)
+		return nil, err
+	}
+
+	buffer, err := json.Marshal(result)
+	if err != nil {
+		om.logger.Errorf("Failed to marshal organizations for caching: %v", err)
+		return nil, err
+	}
+
+	err = om.fleetManager.cache.Write("organizations", buffer)
+	if err != nil {
+		om.logger.Errorf("Failed to write organizations to cache: %v", err)
+		return nil, err
+	}
+
+	om.loaded = true
+	om.records = result
+
+	return result, nil
+}
+
+func (om *OrganizationManager) loadAll(ctx context.Context) ([]OrganizationInfo, error) {
 	om.logger.Info("Loading organizations")
 	args := []string{"organization:list", "--format=csv", "--columns=*"}
 	data, err := om.fleetManager.GetExecOutputWithCtx(args, ctx)

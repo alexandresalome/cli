@@ -18,7 +18,7 @@ type ProjectInfo struct {
 	OrganizationType   string
 	Status             string       `json:"status"`
 	Created            string       `json:"created_at"`
-	DefaultEnvironment *Environment `json:"default_environment"`
+	DefaultEnvironment *Environment `json:"-"`
 }
 
 func (p ProjectInfo) ToJson() string {
@@ -70,6 +70,49 @@ func (pm *ProjectManager) ListAll(ctx context.Context) ([]ProjectInfo, error) {
 		return pm.records, nil
 	}
 
+	cached := pm.fleetManager.cache.Read("projects")
+	if cached != nil {
+		var projects []ProjectInfo
+		err := json.Unmarshal(cached, &projects)
+		if err == nil {
+			for i := range projects {
+				defaultEnv := pm.fleetManager.Environment.GetOrCreate(&projects[i], ".")
+				projects[i].DefaultEnvironment = defaultEnv
+			}
+			pm.logger.Debugf("Loaded %d projects from cache", len(projects))
+			pm.loaded = true
+			pm.records = projects
+			return pm.records, nil
+		}
+		pm.logger.Warnf("Failed to unmarshal cached projects: %v", err)
+	}
+
+	result, err := pm.loadAll(ctx)
+	if err != nil {
+		pm.logger.Errorf("Failed to load projects: %v", err)
+		return nil, err
+	}
+
+	buffer, err := json.Marshal(result)
+	if err != nil {
+		pm.logger.Errorf("Failed to marshal projects for caching: %v", err)
+		return nil, err
+	}
+
+	err = pm.fleetManager.cache.Write("projects", buffer)
+	if err != nil {
+		pm.logger.Errorf("Failed to write projects to cache: %v", err)
+		return nil, err
+	}
+
+	pm.loaded = true
+	pm.records = result
+	pm.logger.Debugf("Loaded %d projects", len(pm.records))
+
+	return pm.records, nil
+}
+
+func (pm *ProjectManager) loadAll(ctx context.Context) ([]ProjectInfo, error) {
 	result := []ProjectInfo{}
 	args := []string{"project:list", "--format=csv", "--count=0", "--columns=*"}
 
@@ -105,19 +148,9 @@ func (pm *ProjectManager) ListAll(ctx context.Context) ([]ProjectInfo, error) {
 			DefaultEnvironment: nil,
 		}
 		defaultEnv := pm.fleetManager.Environment.GetOrCreate(&project, ".")
-		if err != nil {
-			pm.logger.Warnf("Failed to get default environment for project %s: %v", project.ProjectID, err)
-
-			return nil, err
-		}
-
 		project.DefaultEnvironment = defaultEnv
 		result = append(result, project)
 	}
-
-	pm.loaded = true
-	pm.records = result
-	pm.logger.Debugf("Loaded %d projects", len(pm.records))
 
 	return result, nil
 }
